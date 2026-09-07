@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ChipSync — Lead Management Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body { font-family: 'DM Sans', sans-serif; background: #f3f4f6; color: #1f2937; overflow: hidden; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#f59e0b",
+  "sidebarDark": true,
+  "compactMode": false,
+  "showAvatars": true
+}/*EDITMODE-END*/;
+
+// ─── TEAM ACCOUNTS ────────────────────────────────────────────────────────────
+const TEAM_ACCOUNTS = [
+  { username: "demo", password: "demo1234", name: "Alex Rivera", role: "Admin", roleLabel: "Senior Sales · Admin" },
+  { username: "demo2",     password: "demo1234", name: "Jordan Lee",     role: "Sales", roleLabel: "Sales Representative" },
+  { username: "manager",    password: "demo1234",   name: "Manager",  role: "Manager", roleLabel: "Manager · View All" },
+];
+
+// ─── LOGIN SCREEN ─────────────────────────────────────────────────────────────
+const LoginScreen = ({ onLogin }) => {
+  const [username, setUsername] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [showPw, setShowPw] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    setTimeout(() => {
+      const account = TEAM_ACCOUNTS.find(
+        a => a.username === username.trim().toLowerCase() && a.password === password
+      );
+      if (account) {
+        onLogin(account);
+      } else {
+        setError("Invalid username or password. Please try again.");
+        setLoading(false);
+      }
+    }, 600);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#111827", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      {/* Background pattern */}
+      <div style={{ position: "fixed", inset: 0, backgroundImage: "radial-gradient(circle at 20% 50%, rgba(245,158,11,0.06) 0%, transparent 60%), radial-gradient(circle at 80% 20%, rgba(124,58,237,0.05) 0%, transparent 50%)", pointerEvents: "none" }} />
+
+      <div style={{ width: "100%", maxWidth: 400, position: "relative", zIndex: 1 }}>
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "#f59e0b", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 24px rgba(245,158,11,0.35)" }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="white"/>
+                <path d="M2 17l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <span style={{ fontSize: 26, fontWeight: 800, color: "#fff", letterSpacing: "-0.5px" }}>ChipSync</span>
+          </div>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>Lead Management Dashboard</p>
+        </div>
+
+        {/* Card */}
+        <div style={{ background: "#1f2937", borderRadius: 16, border: "1px solid #374151", padding: "32px 32px 28px", boxShadow: "0 24px 48px rgba(0,0,0,0.4)" }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#f9fafb", marginBottom: 6 }}>Sign in to your account</h2>
+          <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 24 }}>Team members only</p>
+
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Username */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#d1d5db" }}>Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="e.g. mubashir"
+                autoComplete="username"
+                required
+                style={{ padding: "11px 14px", background: "#111827", border: `1px solid ${error ? "#ef4444" : "#374151"}`, borderRadius: 8, fontSize: 14, color: "#f9fafb", outline: "none", transition: "border-color 0.15s" }}
+                onFocus={e => e.target.style.borderColor = "#f59e0b"}
+                onBlur={e => e.target.style.borderColor = error ? "#ef4444" : "#374151"}
+              />
+            </div>
+
+            {/* Password */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#d1d5db" }}>Password</label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showPw ? "text" : "password"}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  autoComplete="current-password"
+                  required
+                  style={{ width: "100%", padding: "11px 42px 11px 14px", background: "#111827", border: `1px solid ${error ? "#ef4444" : "#374151"}`, borderRadius: 8, fontSize: 14, color: "#f9fafb", outline: "none", transition: "border-color 0.15s" }}
+                  onFocus={e => e.target.style.borderColor = "#f59e0b"}
+                  onBlur={e => e.target.style.borderColor = error ? "#ef4444" : "#374151"}
+                />
+                <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#6b7280", padding: 2 }}>
+                  {showPw
+                    ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  }
+                </button>
+              </div>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 12px", background: "#fee2e2", borderRadius: 8, border: "1px solid #fecaca" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 500 }}>{error}</span>
+              </div>
+            )}
+
+            {/* Submit */}
+            <button type="submit" disabled={loading} style={{ padding: "12px", background: loading ? "#d97706" : "#f59e0b", border: "none", borderRadius: 8, color: "#111827", fontSize: 14, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", transition: "background 0.15s", marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              {loading ? (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+                  Signing in…
+                </>
+              ) : "Sign In"}
+            </button>
+          </form>
+
+          {/* Demo hint */}
+          <div style={{ marginTop: 20, padding: "12px 14px", background: "#111827", borderRadius: 8, border: "1px solid #374151" }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>Demo Accounts</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {TEAM_ACCOUNTS.map(a => (
+                <button key={a.username} onClick={() => { setUsername(a.username); setPassword(a.password); setError(""); }}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "none", border: "1px solid #374151", borderRadius: 6, cursor: "pointer", transition: "border-color 0.1s" }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = "#f59e0b"}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = "#374151"}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <div style={{ width: 22, height: 22, borderRadius: "50%", background: avatarColor(a.name), display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 9, fontWeight: 700 }}>{initials(a.name)}</div>
+                    <span style={{ fontSize: 12, color: "#d1d5db", fontWeight: 500 }}>{a.name}</span>
+                  </div>
+                  <span style={{ fontSize: 10, color: "#6b7280" }}>{a.roleLabel}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <p style={{ textAlign: "center", marginTop: 20, fontSize: 12, color: "#4b5563" }}>
+          sales@chipsync.ae · Dubai, UAE
+        </p>
+      </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+};
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+
+const LEADS = [
+  { id: "L-2041", name: "Mohammed Al Rashid", company: "TechnoCoryx IT Solutions", email: "m.rashid@technocoryx.ae", phone: "+971 50 234 5678", category: "Laptops", products: "Dell Latitude 5540 x20, Lenovo ThinkPad E15 x15", qty: 35, budget: "85,000 AED", status: "Quoted", assignee: "Alex Rivera", source: "Detailed Form", date: "2026-05-01", location: "Dubai, UAE", trn: "100342876500003", priority: "High", notes: "Urgent requirement, needs delivery within 4 days. Strong relationship, second order.", timeline: "ASAP" },
+  { id: "L-2040", name: "Sara Al Mansoori", company: "Gulf Enterprises LLC", email: "sara@gulfent.com", phone: "+971 55 901 2345", category: "Networking", products: "Cisco Catalyst 9200 x4, LC-LC OM3 Cables x100", qty: 104, budget: "42,000 AED", status: "New", assignee: "Unassigned", source: "Simple Form", date: "2026-05-01", location: "Abu Dhabi, UAE", trn: "", priority: "Medium", notes: "Fiber upgrade project for new office building.", timeline: "2 weeks" },
+  { id: "L-2039", name: "Ahmad Karimi", company: "Karimi Brothers Trading", email: "ahmad@karimibros.com", phone: "+971 52 678 9012", category: "Servers", products: "Dell PowerEdge R750 x2, HP ProLiant DL380 x1", qty: 3, budget: "120,000 AED", status: "In Progress", assignee: "Alex Rivera", source: "Detailed Form", date: "2026-04-30", location: "Sharjah, UAE", trn: "100298765400001", priority: "High", notes: "Data center expansion. Payment via LPO confirmed.", timeline: "1 month" },
+  { id: "L-2038", name: "Priya Nair", company: "Stellar Solutions FZE", email: "priya.n@stellarsol.ae", phone: "+971 54 321 0987", category: "Laptops", products: "Apple MacBook Pro 14\" M3 x10", qty: 10, budget: "95,000 AED", status: "Ordered", assignee: "Alex Rivera", source: "WhatsApp", date: "2026-04-29", location: "JAFZA, Dubai", trn: "100456123700002", priority: "High", notes: "Recurring customer. Annual refresh cycle.", timeline: "Immediate" },
+  { id: "L-2037", name: "Khalid Bin Laden", company: "Al Noor Contracting", email: "k.binladen@alnoor.ae", phone: "+971 50 555 7890", category: "Peripherals", products: "Dell Monitors 27\" x30, HP Keyboards x30, Logitech Mice x30", qty: 90, budget: "55,000 AED", status: "Quoted", assignee: "Jordan Lee", source: "Website", date: "2026-04-28", location: "Dubai, UAE", trn: "100123456800004", priority: "Medium", notes: "New office setup. Bundle deal requested.", timeline: "3 weeks" },
+  { id: "L-2036", name: "Omar Hassan", company: "Horizon Digital Media", email: "omar@horizondm.ae", phone: "+971 56 432 1098", category: "Workstations", products: "HP Z4 G5 Workstation x5, NVIDIA RTX 4080 GPU x5", qty: 10, budget: "180,000 AED", status: "In Progress", assignee: "Jordan Lee", source: "Referral", date: "2026-04-27", location: "Media City, Dubai", trn: "100567890100005", priority: "High", notes: "Creative production company. Needs GPU-heavy workstations.", timeline: "2 weeks" },
+  { id: "L-2035", name: "Fatiha Benali", company: "Benali Import Export", email: "f.benali@benaliie.com", phone: "+971 58 765 4321", category: "Storage", products: "Seagate Exos 16TB HDD x50, Samsung 870 EVO 1TB SSD x20", qty: 70, budget: "38,000 AED", status: "Closed", assignee: "Alex Rivera", source: "Simple Form", date: "2026-04-25", location: "Ajman, UAE", trn: "", priority: "Low", notes: "Storage upgrade project. Deal closed successfully.", timeline: "Flexible" },
+  { id: "L-2034", name: "Tariq Mahmood", company: "Prime Tech Retail LLC", email: "tariq@primetech.ae", phone: "+971 55 234 6789", category: "Laptops", products: "Lenovo IdeaPad 5 x25, HP Pavilion x20", qty: 45, budget: "72,000 AED", status: "Lost", assignee: "Jordan Lee", source: "Website", date: "2026-04-24", location: "Deira, Dubai", trn: "100234567900006", priority: "Medium", notes: "Lost to competitor on price. Follow up next quarter.", timeline: "Immediate" },
+  { id: "L-2033", name: "Rania Khalil", company: "Khalil Medical Center", email: "rania@khalilmed.ae", phone: "+971 50 876 5432", category: "Laptops", products: "Dell Latitude 7440 x8, Dell Precision 5570 x4", qty: 12, budget: "62,000 AED", status: "New", assignee: "Unassigned", source: "Referral", date: "2026-05-02", location: "Jumeirah, Dubai", trn: "100345678000007", priority: "High", notes: "Medical sector, needs specific software compatibility.", timeline: "1 week" },
+  { id: "L-2032", name: "Bilal Chaudhry", company: "Chaudhry & Sons Trading", email: "bilal@chaudhrysons.pk", phone: "+92 300 1234567", category: "Mobile Devices", products: "Samsung Galaxy S24 Ultra x20, iPhone 15 Pro x15", qty: 35, budget: "110,000 AED", status: "In Progress", assignee: "Alex Rivera", source: "WhatsApp", date: "2026-04-26", location: "Lahore, Pakistan", trn: "", priority: "Medium", notes: "International order. Payment upfront required.", timeline: "2 weeks" },
+];
+
+const CUSTOMERS = [
+  { id: "C-501", name: "TechnoCoryx IT Solutions", contact: "Mohammed Al Rashid", email: "m.rashid@technocoryx.ae", phone: "+971 50 234 5678", location: "Dubai, UAE", totalOrders: 3, totalValue: "245,000 AED", lastOrder: "2026-05-01", status: "Active" },
+  { id: "C-502", name: "Stellar Solutions FZE", contact: "Priya Nair", email: "priya.n@stellarsol.ae", phone: "+971 54 321 0987", location: "JAFZA, Dubai", totalOrders: 7, totalValue: "620,000 AED", lastOrder: "2026-04-29", status: "Active" },
+  { id: "C-503", name: "Horizon Digital Media", contact: "Omar Hassan", email: "omar@horizondm.ae", phone: "+971 56 432 1098", location: "Media City, Dubai", totalOrders: 2, totalValue: "310,000 AED", lastOrder: "2026-04-27", status: "Active" },
+  { id: "C-504", name: "Al Noor Contracting", contact: "Khalid Al Mansoor", email: "k.binladen@alnoor.ae", phone: "+971 50 555 7890", location: "Dubai, UAE", totalOrders: 1, totalValue: "55,000 AED", lastOrder: "2026-04-28", status: "Prospect" },
+  { id: "C-505", name: "Gulf Enterprises LLC", contact: "Sara Al Mansoori", email: "sara@gulfent.com", phone: "+971 55 901 2345", location: "Abu Dhabi, UAE", totalOrders: 0, totalValue: "0 AED", lastOrder: "—", status: "New" },
+  { id: "C-506", name: "Karimi Brothers Trading", contact: "Ahmad Karimi", email: "ahmad@karimibros.com", phone: "+971 52 678 9012", location: "Sharjah, UAE", totalOrders: 4, totalValue: "480,000 AED", lastOrder: "2026-04-30", status: "Active" },
+];
+
+const TEAM = [
+  { name: "Alex Rivera", role: "Senior Sales", leads: 6, closed: 4, value: "532,000 AED", rate: "67%" },
+  { name: "Jordan Lee", role: "Sales Rep", leads: 3, closed: 1, value: "180,000 AED", rate: "33%" },
+  { name: "Unassigned", role: "—", leads: 2, closed: 0, value: "0 AED", rate: "—" },
+];
+
+// ─── ICONS ────────────────────────────────────────────────────────────────────
+const Icon = ({ name, size = 18, color = "currentColor" }) => {
+  const icons = {
+    dashboard: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>,
+    leads: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    customers: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+    analytics: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+    team: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    settings: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41M21 12h-2M5 12H3M12 21v-2M12 5V3"/></svg>,
+    close: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+    search: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+    filter: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
+    plus: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+    chevronDown: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
+    chevronRight: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
+    mail: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+    phone: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8 19.79 19.79 0 01.22 1.18 2 2 0 012.22 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.18 6.18l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>,
+    location: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+    tag: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
+    edit: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+    trending: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+    box: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+    dollar: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
+    check: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+    clock: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+    bell: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
+    whatsapp: <svg width={size} height={size} viewBox="0 0 24 24" fill={color}><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>,
+    logout: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  };
+  return icons[name] || null;
+};
+
+// ─── STATUS BADGE ─────────────────────────────────────────────────────────────
+const STATUS_CONFIG = {
+  "New":        { bg: "#dbeafe", text: "#1d4ed8", dot: "#3b82f6" },
+  "Quoted":     { bg: "#fef9c3", text: "#854d0e", dot: "#eab308" },
+  "In Progress":{ bg: "#fff7ed", text: "#9a3412", dot: "#f97316" },
+  "Ordered":    { bg: "#dcfce7", text: "#15803d", dot: "#22c55e" },
+  "Closed":     { bg: "#f0fdf4", text: "#166534", dot: "#16a34a" },
+  "Lost":       { bg: "#fee2e2", text: "#991b1b", dot: "#ef4444" },
+};
+
+const PRIORITY_CONFIG = {
+  "High":   { bg: "#fee2e2", text: "#991b1b" },
+  "Medium": { bg: "#fff7ed", text: "#9a3412" },
+  "Low":    { bg: "#f0fdf4", text: "#166534" },
+};
+
+const StatusBadge = ({ status }) => {
+  const c = STATUS_CONFIG[status] || { bg: "#f3f4f6", text: "#374151", dot: "#6b7280" };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: c.bg, color: c.text, fontSize: 12, fontWeight: 600 }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: c.dot, flexShrink: 0 }}></span>
+      {status}
+    </span>
+  );
+};
+
+const PriorityBadge = ({ priority }) => {
+  const c = PRIORITY_CONFIG[priority] || { bg: "#f3f4f6", text: "#374151" };
+  return (
+    <span style={{ padding: "2px 8px", borderRadius: 4, background: c.bg, color: c.text, fontSize: 11, fontWeight: 600 }}>
+      {priority}
+    </span>
+  );
+};
+
+// ─── AVATAR ───────────────────────────────────────────────────────────────────
+const initials = (name) => name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2);
+const avatarColor = (name) => {
+  const cols = ["#7c3aed","#2563eb","#059669","#d97706","#dc2626","#0891b2"];
+  return cols[name.charCodeAt(0) % cols.length];
+};
+
+const Avatar = ({ name, size = 32 }) => (
+  <div style={{ width: size, height: size, borderRadius: "50%", background: avatarColor(name), display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: size * 0.35, fontWeight: 700, flexShrink: 0 }}>
+    {initials(name)}
+  </div>
+);
+
+// ─── METRIC CARD ─────────────────────────────────────────────────────────────
+const MetricCard = ({ label, value, sub, icon, accent, trend }) => (
+  <div style={{ background: "#fff", borderRadius: 12, padding: "20px 24px", border: "1px solid #e5e7eb", display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <span style={{ fontSize: 13, color: "#6b7280", fontWeight: 500 }}>{label}</span>
+      <div style={{ width: 36, height: 36, borderRadius: 8, background: accent + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Icon name={icon} size={18} color={accent} />
+      </div>
+    </div>
+    <div style={{ fontSize: 28, fontWeight: 700, color: "#111827", letterSpacing: "-0.5px" }}>{value}</div>
+    {sub && <div style={{ fontSize: 12, color: "#9ca3af" }}>{sub}</div>}
+    {trend && <div style={{ fontSize: 12, color: "#22c55e", fontWeight: 600 }}>↑ {trend}</div>}
+  </div>
+);
+
+// ─── QUOTATION BUILDER ────────────────────────────────────────────────────────
+const QuotationBuilder = ({ lead, onClose, accent }) => {
+  const quoteNum = "QT-" + lead.id.replace("L-","") + "-" + new Date().getFullYear();
+  const today = new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"long", year:"numeric" });
+  const validUntil = new Date(Date.now() + 7*24*60*60*1000).toLocaleDateString("en-GB", { day:"2-digit", month:"long", year:"numeric" });
+
+  // Parse products from lead into line items
+  const parseItems = () => {
+    if (!lead.products) return [{ desc: "", qty: 1, unit: "AED", unitPrice: "", total: 0 }];
+    return lead.products.split(",").map(p => {
+      const m = p.trim().match(/^(.+?)\s+x(\d+)$/i);
+      return m
+        ? { desc: m[1].trim(), qty: parseInt(m[2]), unit: "AED", unitPrice: "", total: 0 }
+        : { desc: p.trim(), qty: 1, unit: "AED", unitPrice: "", total: 0 };
+    });
+  };
+
+  const [items, setItems] = React.useState(parseItems);
+  const [vatPct, setVatPct] = React.useState(5);
+  const [notes, setNotes] = React.useState("Thank you for your inquiry. We look forward to doing business with you.");
+  const [payTerms, setPayTerms] = React.useState("50% advance, 50% on delivery");
+  const [delivery, setDelivery] = React.useState("2–4 business days (UAE)");
+  const [validity, setValidity] = React.useState("7 days");
+
+  const updateItem = (i, field, val) => {
+    setItems(prev => {
+      const next = [...prev];
+      next[i] = { ...next[i], [field]: val };
+      const up = parseFloat(next[i].unitPrice) || 0;
+      const q = parseFloat(next[i].qty) || 0;
+      next[i].total = up * q;
+      return next;
+    });
+  };
+
+  const addItem = () => setItems(prev => [...prev, { desc: "", qty: 1, unit: "AED", unitPrice: "", total: 0 }]);
+  const removeItem = (i) => setItems(prev => prev.filter((_, idx) => idx !== i));
+
+  const subtotal = items.reduce((s, it) => s + (it.total || 0), 0);
+  const vat = subtotal * (vatPct / 100);
+  const grandTotal = subtotal + vat;
+  const fmt = n => n.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const openPrint = () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>Quotation ${quoteNum}</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;color:#1f2937;background:#fff;font-size:13px}
+  @page{size:A4;margin:0}
+  .page{width:210mm;min-height:297mm;padding:0;position:relative;background:#fff}
+  .header{background:#111827;padding:32px 40px 24px;display:flex;justify-content:space-between;align-items:flex-start}
+  .logo-row{display:flex;align-items:center;gap:12px}
+  .logo-box{width:42px;height:42px;background:#f59e0b;border-radius:10px;display:flex;align-items:center;justify-content:center}
+  .logo-text{color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px}
+  .company-sub{color:#9ca3af;font-size:11px;margin-top:2px}
+  .quote-meta{text-align:right;color:#d1d5db}
+  .quote-num{font-size:20px;font-weight:700;color:#f59e0b}
+  .gold-bar{height:4px;background:linear-gradient(90deg,#f59e0b,#d97706)}
+  .body{padding:32px 40px}
+  .bill-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px}
+  .bill-box{background:#f9fafb;border-radius:8px;padding:16px}
+  .bill-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#9ca3af;margin-bottom:8px}
+  .bill-name{font-size:15px;font-weight:700;color:#111827;margin-bottom:4px}
+  .bill-detail{font-size:12px;color:#6b7280;margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px}
+  thead tr{background:#111827;color:#fff}
+  thead th{padding:10px 12px;text-align:left;font-size:11px;font-weight:600;letter-spacing:0.04em}
+  thead th:last-child,thead th:nth-last-child(2),thead th:nth-last-child(3){text-align:right}
+  tbody tr{border-bottom:1px solid #f3f4f6}
+  tbody tr:nth-child(even){background:#fafafa}
+  tbody td{padding:10px 12px;font-size:12px;vertical-align:top}
+  tbody td:last-child,tbody td:nth-last-child(2),tbody td:nth-last-child(3){text-align:right}
+  .totals{margin-left:auto;width:260px}
+  .total-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f3f4f6}
+  .total-row.grand{font-size:16px;font-weight:700;color:#111827;border-bottom:none;padding-top:10px;border-top:2px solid #f59e0b;margin-top:4px}
+  .terms{margin-top:24px;padding:16px;background:#f9fafb;border-radius:8px;border-left:3px solid #f59e0b}
+  .terms-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6b7280;margin-bottom:8px}
+  .terms-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .term-item{font-size:12px;color:#374151}
+  .term-item span{font-weight:600;color:#111827}
+  .notes{margin-top:16px;font-size:12px;color:#6b7280;padding:12px 16px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a}
+  .footer{margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:11px;color:#9ca3af}
+  .sig-line{margin-top:40px;border-top:1px solid #d1d5db;padding-top:8px;font-size:11px;color:#9ca3af;width:180px}
+  .authorized{display:flex;gap:40px;margin-top:24px}
+  @media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="logo-row">
+      <div class="logo-box">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" fill="white"/><path d="M2 17l10 5 10-5" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M2 12l10 5 10-5" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <div class="logo-text">ChipSync</div>
+        <div class="company-sub">Technology Solutions · Dubai, UAE</div>
+        <div class="company-sub">sales@chipsync.ae · Authorized Dell · Lenovo · Apple Partner</div>
+      </div>
+    </div>
+    <div class="quote-meta">
+      <div class="quote-num">${quoteNum}</div>
+      <div style="margin-top:6px;font-size:12px">Date: ${today}</div>
+      <div style="font-size:12px">Valid Until: ${validUntil}</div>
+    </div>
+  </div>
+  <div class="gold-bar"></div>
+  <div class="body">
+    <div class="bill-grid">
+      <div class="bill-box">
+        <div class="bill-label">Bill To</div>
+        <div class="bill-name">${lead.company}</div>
+        <div class="bill-detail">${lead.name}</div>
+        <div class="bill-detail">${lead.email}</div>
+        <div class="bill-detail">${lead.phone}</div>
+        <div class="bill-detail">${lead.location}</div>
+        ${lead.trn ? `<div class="bill-detail" style="margin-top:6px">TRN: ${lead.trn}</div>` : ""}
+      </div>
+      <div class="bill-box">
+        <div class="bill-label">Quote Details</div>
+        <div class="bill-detail"><span style="font-weight:600">Quote No:</span> ${quoteNum}</div>
+        <div class="bill-detail"><span style="font-weight:600">Ref Lead:</span> ${lead.id}</div>
+        <div class="bill-detail"><span style="font-weight:600">Category:</span> ${lead.category}</div>
+        <div class="bill-detail"><span style="font-weight:600">Payment:</span> ${payTerms}</div>
+        <div class="bill-detail"><span style="font-weight:600">Delivery:</span> ${delivery}</div>
+        <div class="bill-detail"><span style="font-weight:600">Valid For:</span> ${validity}</div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th>Description</th>
+          <th style="width:60px">Qty</th>
+          <th style="width:110px">Unit Price (AED)</th>
+          <th style="width:110px">Total (AED)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map((it, i) => `
+        <tr>
+          <td style="color:#9ca3af">${i+1}</td>
+          <td style="font-weight:500">${it.desc || "—"}</td>
+          <td>${it.qty}</td>
+          <td>${it.unitPrice ? parseFloat(it.unitPrice).toLocaleString("en-AE",{minimumFractionDigits:2}) : "—"}</td>
+          <td style="font-weight:600">${it.total ? it.total.toLocaleString("en-AE",{minimumFractionDigits:2}) : "—"}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <div class="total-row"><span>Subtotal</span><span>AED ${fmt(subtotal)}</span></div>
+      <div class="total-row"><span>VAT (${vatPct}%)</span><span>AED ${fmt(vat)}</span></div>
+      <div class="total-row grand"><span>Grand Total</span><span style="color:#d97706">AED ${fmt(grandTotal)}</span></div>
+    </div>
+
+    <div class="terms">
+      <div class="terms-title">Terms & Conditions</div>
+      <div class="terms-grid">
+        <div class="term-item"><span>Payment: </span>${payTerms}</div>
+        <div class="term-item"><span>Delivery: </span>${delivery}</div>
+        <div class="term-item"><span>Validity: </span>${validity}</div>
+        <div class="term-item"><span>Warranty: </span>As per manufacturer</div>
+      </div>
+    </div>
+
+    <div class="notes">${notes}</div>
+
+    <div class="authorized">
+      <div><div class="sig-line">Authorized Signature</div></div>
+      <div><div class="sig-line">Company Stamp</div></div>
+    </div>
+
+    <div class="footer">
+      <span>ChipSync Technology Solutions · Dubai, UAE · sales@chipsync.ae</span>
+      <span>Authorized Dell · Lenovo · Apple Partner</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
+    const w = window.open("", "_blank", "width=900,height=700");
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => w.print(), 600);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }} onClick={onClose} />
+      <div style={{ position: "relative", width: 700, maxHeight: "92vh", background: "#fff", borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
+        {/* Header */}
+        <div style={{ padding: "18px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111827" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>Quotation Builder</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", marginTop: 2 }}>{lead.company} · {quoteNum}</div>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #374151", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="close" size={15} color="#9ca3af" />
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Line items */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em" }}>Line Items</div>
+              <button onClick={addItem} style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", background: accent + "18", border: `1px solid ${accent}44`, borderRadius: 6, color: accent, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                <Icon name="plus" size={12} color={accent} /> Add Item
+              </button>
+            </div>
+
+            {/* Table header */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 130px 110px 28px", gap: 6, padding: "6px 8px", background: "#f9fafb", borderRadius: "6px 6px 0 0", border: "1px solid #e5e7eb", borderBottom: "none" }}>
+              {["Description", "Qty", "Unit Price (AED)", "Total (AED)", ""].map(h => (
+                <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: h === "Total (AED)" || h === "Unit Price (AED)" ? "right" : "left" }}>{h}</div>
+              ))}
+            </div>
+
+            {/* Rows */}
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: "0 0 8px 8px", overflow: "hidden" }}>
+              {items.map((it, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 70px 130px 110px 28px", gap: 6, padding: "7px 8px", borderBottom: i < items.length - 1 ? "1px solid #f3f4f6" : "none", alignItems: "center", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                  <input value={it.desc} onChange={e => updateItem(i,"desc",e.target.value)} placeholder="Product description" style={{ padding: "6px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, width: "100%", outline: "none" }} />
+                  <input type="number" value={it.qty} onChange={e => updateItem(i,"qty",e.target.value)} min={1} style={{ padding: "6px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, width: "100%", textAlign: "center", outline: "none" }} />
+                  <input type="number" value={it.unitPrice} onChange={e => updateItem(i,"unitPrice",e.target.value)} placeholder="0.00" style={{ padding: "6px 8px", border: `1.5px solid ${it.unitPrice ? accent : "#e5e7eb"}`, borderRadius: 6, fontSize: 12, width: "100%", textAlign: "right", outline: "none" }} />
+                  <div style={{ textAlign: "right", fontSize: 13, fontWeight: 700, color: it.total ? "#111827" : "#d1d5db" }}>
+                    {it.total ? it.total.toLocaleString("en-AE", { minimumFractionDigits: 2 }) : "—"}
+                  </div>
+                  <button onClick={() => removeItem(i)} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon name="close" size={11} color="#9ca3af" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Totals */}
+            <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+              <div style={{ width: 260, display: "flex", flexDirection: "column", gap: 5 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6b7280" }}>
+                  <span>Subtotal</span><span style={{ fontWeight: 600, color: "#111827" }}>AED {fmt(subtotal)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6b7280", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    VAT
+                    <select value={vatPct} onChange={e => setVatPct(Number(e.target.value))} style={{ padding: "2px 6px", border: "1px solid #e5e7eb", borderRadius: 4, fontSize: 12, background: "#fff" }}>
+                      <option value={0}>0%</option>
+                      <option value={5}>5%</option>
+                      <option value={10}>10%</option>
+                    </select>
+                  </div>
+                  <span style={{ fontWeight: 600, color: "#111827" }}>AED {fmt(vat)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, color: "#111827", borderTop: `2px solid ${accent}`, paddingTop: 8, marginTop: 4 }}>
+                  <span>Grand Total</span><span style={{ color: accent }}>AED {fmt(grandTotal)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Terms */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {[
+              ["Payment Terms", payTerms, setPayTerms],
+              ["Delivery Timeline", delivery, setDelivery],
+              ["Quote Validity", validity, setValidity],
+            ].map(([label, val, set]) => (
+              <div key={label} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</label>
+                <input value={val} onChange={e => set(e.target.value)} style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, outline: "none" }} />
+              </div>
+            ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>VAT % (set above)</label>
+              <input value={vatPct + "%"} disabled style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, background: "#f9fafb", color: "#9ca3af" }} />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Notes to Customer</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, resize: "vertical", fontFamily: "'DM Sans', sans-serif", outline: "none" }} />
+          </div>
+        </div>
+
+        {/* Footer actions */}
+        <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#f9fafb" }}>
+          <button onClick={onClose} style={{ padding: "9px 20px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#374151" }}>Cancel</button>
+          <button onClick={openPrint} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", background: "#111827", border: "none", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print / Save PDF
+          </button>
+          <button onClick={openPrint} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 22px", background: accent, border: "none", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── LEAD DETAIL DRAWER ───────────────────────────────────────────────────────
+const LeadDrawer = ({ lead, onClose, onStatusChange, accent }) => {
+  const [status, setStatus] = React.useState(lead.status);
+  const [assignee, setAssignee] = React.useState(lead.assignee);
+  const [note, setNote] = React.useState("");
+  const [showQuote, setShowQuote] = React.useState(false);
+
+  const handleStatus = (s) => {
+    setStatus(s);
+    onStatusChange(lead.id, s);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex" }}>
+      <div style={{ flex: 1, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }} onClick={onClose} />
+      <div style={{ width: 520, background: "#fff", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", boxShadow: "-8px 0 32px rgba(0,0,0,0.15)" }}>
+        {/* Header */}
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "#fff", zIndex: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 4 }}>Lead Detail</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#111827" }}>{lead.id}</div>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #e5e7eb", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Status row */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {Object.keys(STATUS_CONFIG).map(s => (
+              <button key={s} onClick={() => handleStatus(s)} style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${status === s ? accent : "#e5e7eb"}`, background: status === s ? accent : "#fff", color: status === s ? "#fff" : "#374151", cursor: "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.15s" }}>
+                {s}
+              </button>
+            ))}
+          </div>
+
+          {/* Contact info */}
+          <div style={{ background: "#f9fafb", borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <Avatar name={lead.name} size={44} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: "#111827" }}>{lead.name}</div>
+                <div style={{ fontSize: 13, color: "#6b7280" }}>{lead.company}</div>
+              </div>
+              <div style={{ marginLeft: "auto" }}><PriorityBadge priority={lead.priority} /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {[
+                { icon: "mail", val: lead.email },
+                { icon: "phone", val: lead.phone },
+                { icon: "location", val: lead.location },
+                { icon: "tag", val: lead.source },
+              ].map(r => (
+                <div key={r.icon} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: "#374151" }}>
+                  <Icon name={r.icon} size={13} color="#9ca3af" />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Product requirements */}
+          <div>
+            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Product Requirements</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                ["Category", lead.category],
+                ["Products", lead.products],
+                ["Quantity", lead.qty],
+                ["Budget", lead.budget],
+                ["Timeline", lead.timeline],
+              ].map(([k,v]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, borderBottom: "1px solid #f3f4f6", paddingBottom: 8 }}>
+                  <span style={{ color: "#9ca3af" }}>{k}</span>
+                  <span style={{ color: "#111827", fontWeight: 500, maxWidth: "60%", textAlign: "right" }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Assign */}
+          <div>
+            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Assignee</div>
+            <select value={assignee} onChange={e => setAssignee(e.target.value)} style={{ width: "100%", padding: "9px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, color: "#111827", background: "#fff", cursor: "pointer" }}>
+              <option>Unassigned</option>
+              <option>Alex Rivera</option>
+              <option>Jordan Lee</option>
+            </select>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Notes</div>
+            <div style={{ fontSize: 13, color: "#374151", background: "#f9fafb", borderRadius: 8, padding: 12, marginBottom: 8 }}>{lead.notes}</div>
+            <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Add a note…" rows={3} style={{ width: "100%", padding: "9px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, resize: "vertical", fontFamily: "'DM Sans', sans-serif" }} />
+            <button style={{ marginTop: 6, padding: "7px 16px", background: accent, color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Save Note</button>
+          </div>
+
+          {/* TRN if present */}
+          {lead.trn && (
+            <div style={{ fontSize: 12, color: "#6b7280", padding: "8px 12px", background: "#f3f4f6", borderRadius: 6 }}>
+              <span style={{ fontWeight: 600 }}>TRN:</span> {lead.trn}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <a href={`mailto:${lead.email}`} style={{ flex: 1, padding: "9px 0", background: "#f3f4f6", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "none", color: "#374151", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Icon name="mail" size={14} /> Email
+            </a>
+            <a href={`tel:${lead.phone}`} style={{ flex: 1, padding: "9px 0", background: "#f3f4f6", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "none", color: "#374151", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Icon name="phone" size={14} /> Call
+            </a>
+            <button style={{ flex: 1, padding: "9px 0", background: "#25d366", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Icon name="whatsapp" size={14} color="#fff" /> WhatsApp
+            </button>
+          </div>
+
+          {/* Quotation CTA */}
+          <button onClick={() => setShowQuote(true)} style={{ width: "100%", padding: "12px", background: "#111827", border: `2px solid ${accent}`, borderRadius: 10, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "background 0.15s" }}
+            onMouseEnter={e => e.currentTarget.style.background = "#1f2937"}
+            onMouseLeave={e => e.currentTarget.style.background = "#111827"}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span style={{ color: accent }}>Create Quotation</span>
+            <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 400 }}>— generate letterhead PDF</span>
+          </button>
+        </div>
+      </div>
+
+      {showQuote && <QuotationBuilder lead={lead} onClose={() => setShowQuote(false)} accent={accent} />}
+    </div>
+  );
+};
+
+// ─── LEADS PAGE ───────────────────────────────────────────────────────────────
+const LeadsPage = ({ accent }) => {
+  const [leads, setLeads] = React.useState(LEADS);
+  const [search, setSearch] = React.useState("");
+  const [filterStatus, setFilterStatus] = React.useState("All");
+  const [filterPriority, setFilterPriority] = React.useState("All");
+  const [selected, setSelected] = React.useState(null);
+
+  const filtered = leads.filter(l => {
+    const matchSearch = !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase()) || l.id.toLowerCase().includes(search.toLowerCase()) || l.category.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === "All" || l.status === filterStatus;
+    const matchPriority = filterPriority === "All" || l.priority === filterPriority;
+    return matchSearch && matchStatus && matchPriority;
+  });
+
+  const handleStatusChange = (id, newStatus) => {
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, status: newStatus } : l));
+  };
+
+  const statusCounts = Object.keys(STATUS_CONFIG).reduce((acc, s) => {
+    acc[s] = leads.filter(l => l.status === s).length;
+    return acc;
+  }, {});
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 0, height: "100%" }}>
+      {/* Page header */}
+      <div style={{ padding: "24px 28px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#111827" }}>Leads & Inquiries</h1>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>{leads.length} total leads</p>
+        </div>
+        <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", background: accent, border: "none", borderRadius: 8, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+          <Icon name="plus" size={14} color="#fff" /> Add Lead
+        </button>
+      </div>
+
+      {/* Status tabs */}
+      <div style={{ padding: "16px 28px 0", display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {["All", ...Object.keys(STATUS_CONFIG)].map(s => (
+          <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: "5px 14px", borderRadius: 20, border: `1.5px solid ${filterStatus === s ? accent : "#e5e7eb"}`, background: filterStatus === s ? accent + "18" : "#fff", color: filterStatus === s ? accent : "#6b7280", cursor: "pointer", fontSize: 12, fontWeight: 600, transition: "all 0.15s" }}>
+            {s}{s !== "All" && statusCounts[s] > 0 && <span style={{ marginLeft: 5, background: filterStatus === s ? accent : "#e5e7eb", color: filterStatus === s ? "#fff" : "#374151", borderRadius: 10, padding: "0 6px", fontSize: 10 }}>{statusCounts[s]}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Search + filter */}
+      <div style={{ padding: "12px 28px", display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ flex: 1, position: "relative" }}>
+          <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+            <Icon name="search" size={15} color="#9ca3af" />
+          </span>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads, companies, IDs…" style={{ width: "100%", padding: "9px 12px 9px 35px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", background: "#fff" }} />
+        </div>
+        <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} style={{ padding: "9px 12px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, background: "#fff", cursor: "pointer" }}>
+          <option value="All">All Priority</option>
+          <option>High</option><option>Medium</option><option>Low</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      <div style={{ flex: 1, overflow: "auto", padding: "0 28px 28px" }}>
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["ID", "Contact", "Category", "Budget", "Status", "Priority", "Assignee", "Date", ""].map(h => (
+                  <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((lead, i) => (
+                <tr key={lead.id} onClick={() => setSelected(lead)} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer", transition: "background 0.1s", background: i % 2 === 0 ? "#fff" : "#fafafa" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f0f9ff"}
+                  onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#fafafa"}>
+                  <td style={{ padding: "12px 16px", fontSize: 12, fontWeight: 600, color: accent, fontFamily: "'DM Mono', monospace" }}>{lead.id}</td>
+                  <td style={{ padding: "12px 16px" }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{lead.name}</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 1 }}>{lead.company}</div>
+                  </td>
+                  <td style={{ padding: "12px 16px", fontSize: 12, color: "#374151" }}>{lead.category}</td>
+                  <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>{lead.budget}</td>
+                  <td style={{ padding: "12px 16px" }}><StatusBadge status={lead.status} /></td>
+                  <td style={{ padding: "12px 16px" }}><PriorityBadge priority={lead.priority} /></td>
+                  <td style={{ padding: "12px 16px" }}>
+                    {lead.assignee === "Unassigned"
+                      ? <span style={{ fontSize: 12, color: "#9ca3af" }}>Unassigned</span>
+                      : <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Avatar name={lead.assignee} size={22} /><span style={{ fontSize: 12, color: "#374151" }}>{lead.assignee}</span></div>
+                    }
+                  </td>
+                  <td style={{ padding: "12px 16px", fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>{lead.date}</td>
+                  <td style={{ padding: "12px 16px" }}>
+                    <button onClick={e => { e.stopPropagation(); setSelected(lead); }} style={{ padding: "5px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600, color: "#374151" }}>View</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length === 0 && (
+            <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>No leads match your filters.</div>
+          )}
+        </div>
+      </div>
+
+      {selected && <LeadDrawer lead={selected} onClose={() => setSelected(null)} onStatusChange={handleStatusChange} accent={accent} />}
+    </div>
+  );
+};
+
+// ─── ANALYTICS PAGE ───────────────────────────────────────────────────────────
+const AnalyticsPage = ({ accent }) => {
+  const totalLeads = LEADS.length;
+  const ordered = LEADS.filter(l => l.status === "Ordered" || l.status === "Closed").length;
+  const convRate = Math.round((ordered / totalLeads) * 100);
+  const totalVal = "857,000 AED";
+  const avgVal = "85,700 AED";
+
+  const categoryData = [
+    { name: "Laptops", count: 4, val: "314,000" },
+    { name: "Networking", count: 1, val: "42,000" },
+    { name: "Servers", count: 1, val: "120,000" },
+    { name: "Workstations", count: 1, val: "180,000" },
+    { name: "Storage", count: 1, val: "38,000" },
+    { name: "Peripherals", count: 1, val: "55,000" },
+    { name: "Mobile", count: 1, val: "110,000" },
+  ];
+  const maxCount = Math.max(...categoryData.map(c => c.count));
+
+  const sourceData = [
+    { name: "Detailed Form", count: 3, pct: 30 },
+    { name: "Simple Form", count: 2, pct: 20 },
+    { name: "WhatsApp", count: 2, pct: 20 },
+    { name: "Referral", count: 2, pct: 20 },
+    { name: "Website", count: 1, pct: 10 },
+  ];
+
+  const weeklyData = [
+    { day: "Mon", leads: 3 }, { day: "Tue", leads: 1 }, { day: "Wed", leads: 2 },
+    { day: "Thu", leads: 4 }, { day: "Fri", leads: 2 }, { day: "Sat", leads: 1 }, { day: "Sun", leads: 0 },
+  ];
+  const maxLeads = Math.max(...weeklyData.map(d => d.leads));
+
+  const funnelStages = [
+    { label: "Inquiries", count: 10, width: "100%", color: "#dbeafe" },
+    { label: "Quoted", count: 7, width: "70%", color: "#fef9c3" },
+    { label: "In Progress", count: 5, width: "50%", color: "#fff7ed" },
+    { label: "Ordered", count: 3, width: "30%", color: "#dcfce7" },
+  ];
+
+  return (
+    <div style={{ height: "100%", overflowY: "auto", padding: "24px 28px" }}>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#111827" }}>Analytics</h1>
+        <p style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>Month to date · May 2026</p>
+      </div>
+
+      {/* Metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+        <MetricCard label="Total Leads" value={totalLeads} sub="This month" icon="leads" accent={accent} trend="18% vs last month" />
+        <MetricCard label="Conversion Rate" value={convRate + "%"} sub="Inquiry → Order" icon="trending" accent="#22c55e" />
+        <MetricCard label="Pipeline Value" value={totalVal} sub="Open inquiries" icon="dollar" accent="#7c3aed" />
+        <MetricCard label="Avg. Lead Value" value={avgVal} sub="Per inquiry" icon="box" accent="#0891b2" />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+        {/* Weekly volume */}
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 20 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: "#111827", marginBottom: 16 }}>Weekly Lead Volume</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 100 }}>
+            {weeklyData.map(d => (
+              <div key={d.day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <div style={{ width: "100%", background: accent, borderRadius: "4px 4px 0 0", height: maxLeads > 0 ? `${(d.leads / maxLeads) * 80}px` : "0px", transition: "height 0.3s", minHeight: d.leads > 0 ? 4 : 0 }}></div>
+                <span style={{ fontSize: 10, color: "#9ca3af" }}>{d.day}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#374151" }}>{d.leads}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Funnel */}
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 20 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: "#111827", marginBottom: 16 }}>Conversion Funnel</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {funnelStages.map(f => (
+              <div key={f.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 80, fontSize: 12, color: "#6b7280" }}>{f.label}</div>
+                <div style={{ flex: 1, background: "#f3f4f6", borderRadius: 4, height: 20, overflow: "hidden" }}>
+                  <div style={{ width: f.width, height: "100%", background: f.color, borderRadius: 4, transition: "width 0.5s" }}></div>
+                </div>
+                <div style={{ width: 24, textAlign: "right", fontSize: 12, fontWeight: 700, color: "#111827" }}>{f.count}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        {/* Category breakdown */}
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 20 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: "#111827", marginBottom: 16 }}>Leads by Category</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {categoryData.map(c => (
+              <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 90, fontSize: 12, color: "#374151", fontWeight: 500 }}>{c.name}</div>
+                <div style={{ flex: 1, background: "#f3f4f6", borderRadius: 4, height: 8 }}>
+                  <div style={{ width: `${(c.count / maxCount) * 100}%`, height: "100%", background: accent, borderRadius: 4 }}></div>
+                </div>
+                <div style={{ fontSize: 11, color: "#9ca3af", width: 70, textAlign: "right" }}>{c.val} AED</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Lead sources */}
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 20 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: "#111827", marginBottom: 16 }}>Lead Sources</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {sourceData.map(s => (
+              <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 100, fontSize: 12, color: "#374151" }}>{s.name}</div>
+                <div style={{ flex: 1, background: "#f3f4f6", borderRadius: 4, height: 8 }}>
+                  <div style={{ width: `${s.pct}%`, height: "100%", background: "#7c3aed", borderRadius: 4 }}></div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#374151", width: 36, textAlign: "right" }}>{s.pct}%</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Team perf */}
+          <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #f3f4f6" }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "#111827", marginBottom: 12 }}>Team Performance</div>
+            {TEAM.filter(t => t.name !== "Unassigned").map(t => (
+              <div key={t.name} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <Avatar name={t.name} size={28} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{t.name}</div>
+                  <div style={{ fontSize: 10, color: "#9ca3af" }}>{t.leads} leads · {t.value}</div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#22c55e" }}>{t.rate}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── CUSTOMERS PAGE ───────────────────────────────────────────────────────────
+const CustomersPage = ({ accent }) => {
+  const [search, setSearch] = React.useState("");
+  const filtered = CUSTOMERS.filter(c =>
+    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.contact.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const statusColor = { "Active": { bg: "#dcfce7", text: "#15803d" }, "Prospect": { bg: "#fef9c3", text: "#854d0e" }, "New": { bg: "#dbeafe", text: "#1d4ed8" } };
+
+  return (
+    <div style={{ height: "100%", overflowY: "auto", padding: "24px 28px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#111827" }}>Customers</h1>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>{CUSTOMERS.length} companies</p>
+        </div>
+        <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", background: accent, border: "none", borderRadius: 8, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+          <Icon name="plus" size={14} color="#fff" /> Add Customer
+        </button>
+      </div>
+
+      <div style={{ marginBottom: 16, position: "relative" }}>
+        <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+          <Icon name="search" size={15} color="#9ca3af" />
+        </span>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customers…" style={{ width: "100%", padding: "9px 12px 9px 35px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, outline: "none", background: "#fff" }} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+        {filtered.map(c => {
+          const sc = statusColor[c.status] || { bg: "#f3f4f6", text: "#374151" };
+          return (
+            <div key={c.id} style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 20, cursor: "pointer", transition: "box-shadow 0.15s, transform 0.15s" }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: avatarColor(c.name), display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>{initials(c.name)}</div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#111827" }}>{c.name}</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af" }}>{c.id}</div>
+                  </div>
+                </div>
+                <span style={{ padding: "3px 8px", borderRadius: 20, background: sc.bg, color: sc.text, fontSize: 11, fontWeight: 600 }}>{c.status}</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {[
+                  { icon: "customers", val: c.contact },
+                  { icon: "mail", val: c.email },
+                  { icon: "location", val: c.location },
+                ].map(r => (
+                  <div key={r.icon} style={{ display: "flex", gap: 7, alignItems: "center", fontSize: 12, color: "#374151" }}>
+                    <Icon name={r.icon} size={12} color="#9ca3af" />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.val}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between" }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#111827" }}>{c.totalOrders}</div>
+                  <div style={{ fontSize: 10, color: "#9ca3af" }}>Orders</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: accent }}>{c.totalValue}</div>
+                  <div style={{ fontSize: 10, color: "#9ca3af" }}>Total Value</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>{c.lastOrder}</div>
+                  <div style={{ fontSize: 10, color: "#9ca3af" }}>Last Order</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ─── DASHBOARD HOME ───────────────────────────────────────────────────────────
+const DashboardHome = ({ accent, setPage, currentUser }) => {
+  const newLeads = LEADS.filter(l => l.status === "New").length;
+  const highPriority = LEADS.filter(l => l.priority === "High").length;
+  const recentLeads = LEADS.slice(0, 5);
+
+  return (
+    <div style={{ height: "100%", overflowY: "auto", padding: "24px 28px" }}>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#111827" }}>Good morning, {currentUser.name} 👋</h1>
+        <p style={{ fontSize: 13, color: "#6b7280", marginTop: 2 }}>Friday, May 2, 2026 · Here's what's happening today</p>
+      </div>
+
+      {/* Metrics row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+        <MetricCard label="Total Leads" value={LEADS.length} sub="All time" icon="leads" accent={accent} trend="3 new today" />
+        <MetricCard label="New Inquiries" value={newLeads} sub="Needs attention" icon="bell" accent="#ef4444" />
+        <MetricCard label="High Priority" value={highPriority} sub="Active leads" icon="trending" accent="#f97316" />
+        <MetricCard label="Pipeline" value="857K AED" sub="Open value" icon="dollar" accent="#22c55e" />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+        {/* Recent leads table */}
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>Recent Leads</span>
+            <button onClick={() => setPage("leads")} style={{ fontSize: 12, color: accent, fontWeight: 600, background: "none", border: "none", cursor: "pointer" }}>View all →</button>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <tbody>
+              {recentLeads.map((lead, i) => (
+                <tr key={lead.id} style={{ borderBottom: i < recentLeads.length - 1 ? "1px solid #f3f4f6" : "none" }}>
+                  <td style={{ padding: "12px 20px" }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <Avatar name={lead.name} size={34} />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{lead.name}</div>
+                        <div style={{ fontSize: 11, color: "#9ca3af" }}>{lead.company}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 16px" }}>
+                    <div style={{ fontSize: 12, color: "#374151" }}>{lead.category}</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af" }}>{lead.budget}</div>
+                  </td>
+                  <td style={{ padding: "12px 20px", textAlign: "right" }}><StatusBadge status={lead.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Sidebar: team + quick actions */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Quick actions */}
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 16 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "#111827", marginBottom: 12 }}>Quick Actions</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {[
+                { label: "Add new lead", icon: "plus", color: accent },
+                { label: "View all inquiries", icon: "leads", color: "#7c3aed" },
+                { label: "Export to CSV", icon: "box", color: "#0891b2" },
+              ].map(a => (
+                <button key={a.label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#f9fafb", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#374151", textAlign: "left" }}>
+                  <Icon name={a.icon} size={14} color={a.color} />
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Team status */}
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 16 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "#111827", marginBottom: 12 }}>Team Overview</div>
+            {TEAM.map(t => (
+              <div key={t.name} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                {t.name !== "Unassigned" ? <Avatar name={t.name} size={32} /> : <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#f3f4f6", border: "2px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="customers" size={14} color="#9ca3af" /></div>}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{t.name}</div>
+                  <div style={{ fontSize: 10, color: "#9ca3af" }}>{t.leads} leads · {t.value}</div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: t.rate === "—" ? "#9ca3af" : "#22c55e" }}>{t.rate}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Unassigned alert */}
+          {LEADS.filter(l => l.assignee === "Unassigned").length > 0 && (
+            <div style={{ background: "#fff7ed", borderRadius: 12, border: "1px solid #fed7aa", padding: 14 }}>
+              <div style={{ fontWeight: 600, fontSize: 12, color: "#9a3412", marginBottom: 4 }}>⚠ Unassigned Leads</div>
+              <div style={{ fontSize: 12, color: "#c2410c" }}>{LEADS.filter(l => l.assignee === "Unassigned").length} leads need assignment</div>
+              <button onClick={() => setPage("leads")} style={{ marginTop: 8, fontSize: 12, color: "#9a3412", fontWeight: 600, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Review now →</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+const App = () => {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const accent = tweaks.accentColor;
+  const [page, setPage] = React.useState("dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  const [currentUser, setCurrentUser] = React.useState(() => {
+    try { return JSON.parse(sessionStorage.getItem("chipsync_user")) || null; } catch { return null; }
+  });
+
+  const handleLogin = (account) => {
+    sessionStorage.setItem("chipsync_user", JSON.stringify(account));
+    setCurrentUser(account);
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("chipsync_user");
+    setCurrentUser(null);
+  };
+
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
+
+  const NAV = [
+    { id: "dashboard", label: "Overview", icon: "dashboard" },
+    { id: "leads", label: "Leads", icon: "leads" },
+    { id: "customers", label: "Customers", icon: "customers" },
+    { id: "analytics", label: "Analytics", icon: "analytics" },
+    { id: "team", label: "Team", icon: "team" },
+  ];
+
+  const renderPage = () => {
+    if (page === "dashboard") return <DashboardHome accent={accent} setPage={setPage} currentUser={currentUser} />;
+    if (page === "leads") return <LeadsPage accent={accent} />;
+    if (page === "customers") return <CustomersPage accent={accent} />;
+    if (page === "analytics") return <AnalyticsPage accent={accent} />;
+    if (page === "team") return (
+      <div style={{ padding: "24px 28px" }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Team</h1>
+        <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 24 }}>Manage team members and their performance.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+          {TEAM.filter(t => t.name !== "Unassigned").map(t => (
+            <div key={t.name} style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 24, textAlign: "center" }}>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><Avatar name={t.name} size={56} /></div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: "#111827" }}>{t.name}</div>
+              <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 16 }}>{t.role}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {[["Leads", t.leads], ["Closed", t.closed], ["Value", t.value], ["Rate", t.rate]].map(([k,v]) => (
+                  <div key={k} style={{ background: "#f9fafb", borderRadius: 8, padding: "10px 8px" }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>{v}</div>
+                    <div style={{ fontSize: 10, color: "#9ca3af" }}>{k}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+    return null;
+  };
+
+  const SIDEBAR_W = sidebarCollapsed ? 60 : 220;
+  const sidebarBg = tweaks.sidebarDark ? "#111827" : "#fff";
+  const sidebarText = tweaks.sidebarDark ? "#d1d5db" : "#374151";
+  const sidebarBorder = tweaks.sidebarDark ? "#1f2937" : "#e5e7eb";
+
+  return (
+    <div style={{ display: "flex", height: "100vh", background: "#f3f4f6", overflow: "hidden" }}>
+      {/* Sidebar */}
+      <div style={{ width: SIDEBAR_W, background: sidebarBg, borderRight: `1px solid ${sidebarBorder}`, display: "flex", flexDirection: "column", transition: "width 0.2s", flexShrink: 0, overflow: "hidden" }}>
+        {/* Logo */}
+        <div style={{ padding: sidebarCollapsed ? "20px 0" : "20px 18px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${sidebarBorder}`, justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" fill="white"/><path d="M2 17l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round"/><path d="M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>
+          </div>
+          {!sidebarCollapsed && <span style={{ fontWeight: 800, fontSize: 16, color: tweaks.sidebarDark ? "#fff" : "#111827", whiteSpace: "nowrap" }}>ChipSync</span>}
+        </div>
+
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+          {NAV.map(n => {
+            const active = page === n.id;
+            return (
+              <button key={n.id} onClick={() => setPage(n.id)} title={sidebarCollapsed ? n.label : undefined}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: sidebarCollapsed ? "10px 0" : "10px 12px", borderRadius: 8, border: "none", background: active ? (tweaks.sidebarDark ? accent + "22" : accent + "14") : "none", color: active ? accent : sidebarText, cursor: "pointer", fontSize: 13, fontWeight: active ? 700 : 500, width: "100%", justifyContent: sidebarCollapsed ? "center" : "flex-start", transition: "all 0.15s" }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = tweaks.sidebarDark ? "#1f2937" : "#f3f4f6"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "none"; }}>
+                <Icon name={n.icon} size={17} color={active ? accent : sidebarText} />
+                {!sidebarCollapsed && n.label}
+                {!sidebarCollapsed && n.id === "leads" && LEADS.filter(l => l.status === "New").length > 0 && (
+                  <span style={{ marginLeft: "auto", background: "#ef4444", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>{LEADS.filter(l => l.status === "New").length}</span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Bottom */}
+        <div style={{ padding: "12px 8px", borderTop: `1px solid ${sidebarBorder}`, display: "flex", flexDirection: "column", gap: 2 }}>
+          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ display: "flex", alignItems: "center", gap: 10, padding: sidebarCollapsed ? "9px 0" : "9px 12px", borderRadius: 8, border: "none", background: "none", color: sidebarText, cursor: "pointer", fontSize: 12, width: "100%", justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
+            <Icon name="chevronRight" size={15} color={sidebarText} />
+            {!sidebarCollapsed && "Collapse"}
+          </button>
+          <button style={{ display: "flex", alignItems: "center", gap: 10, padding: sidebarCollapsed ? "9px 0" : "9px 12px", borderRadius: 8, border: "none", background: "none", color: sidebarText, cursor: "pointer", fontSize: 12, width: "100%", justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
+            <Icon name="settings" size={15} color={sidebarText} />
+            {!sidebarCollapsed && "Settings"}
+          </button>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {/* Top bar */}
+        <div style={{ height: 56, background: "#fff", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", padding: "0 24px", gap: 12, flexShrink: 0 }}>
+          <div style={{ flex: 1, fontSize: 13, color: "#6b7280" }}>
+            {page === "dashboard" && "Dashboard"}
+            {page === "leads" && "Leads & Inquiries"}
+            {page === "customers" && "Customers"}
+            {page === "analytics" && "Analytics"}
+            {page === "team" && "Team"}
+          </div>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <button style={{ position: "relative", width: 36, height: 36, borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="bell" size={16} color="#6b7280" />
+              <span style={{ position: "absolute", top: 6, right: 7, width: 7, height: 7, borderRadius: "50%", background: "#ef4444", border: "1.5px solid #fff" }}></span>
+            </button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 8px", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+              <Avatar name={currentUser.name} size={26} />
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#374151", lineHeight: 1.2 }}>{currentUser.name}</span>
+                <span style={{ fontSize: 10, color: "#9ca3af", lineHeight: 1.2 }}>{currentUser.roleLabel}</span>
+              </div>
+            </div>
+            <button onClick={handleLogout} title="Sign out" style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="logout" size={15} color="#6b7280" />
+            </button>
+          </div>
+        </div>
+
+        {/* Page content */}
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          {renderPage()}
+        </div>
+      </div>
+
+      <TweaksPanel>
+        <TweakSection label="Appearance" />
+        <TweakColor label="Accent Color" value={tweaks.accentColor} onChange={v => setTweak("accentColor", v)} />
+        <TweakToggle label="Dark Sidebar" value={tweaks.sidebarDark} onChange={v => setTweak("sidebarDark", v)} />
+        <TweakToggle label="Compact Mode" value={tweaks.compactMode} onChange={v => setTweak("compactMode", v)} />
+        <TweakToggle label="Show Avatars" value={tweaks.showAvatars} onChange={v => setTweak("showAvatars", v)} />
+      </TweaksPanel>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

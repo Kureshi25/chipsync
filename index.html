@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ChipSync CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { height: 100%; }
+body { font-family: 'DM Sans', sans-serif; background: #f3f4f6; color: #1f2937; overflow: hidden; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+input, select, textarea { font-family: 'DM Sans', sans-serif; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.2s ease; }
+.slide-in { animation: slideIn 0.25s cubic-bezier(0.4,0,0.2,1); }
+
+/* ── Dark mode ── */
+body.dark { background: #0f172a; color: #f1f5f9; }
+body.dark ::-webkit-scrollbar-thumb { background: #334155; }
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  .mob-hide { display: none !important; }
+  .mob-full { width: 100% !important; }
+  .mob-grid1 { grid-template-columns: 1fr !important; }
+  .mob-col1 { grid-template-columns: 1fr 1fr !important; }
+  .mob-stack { flex-direction: column !important; }
+  .mob-pad { padding: 12px 14px !important; }
+  .mob-fs12 { font-size: 12px !important; }
+}
+@media (max-width: 480px) {
+  .mob-col1 { grid-template-columns: 1fr !important; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "#f59e0b",
+  "sidebarDark": true,
+  "compactMode": false,
+  "darkMode": false
+} /*EDITMODE-END*/;
+
+// ─── DARK MODE THEME ──────────────────────────────────────────────────────────
+const DARK = {
+  bg: "#0f172a", surface: "#1e293b", surface2: "#273549",
+  border: "#334155", text: "#f1f5f9", textSub: "#94a3b8",
+  textMuted: "#64748b", input: "#1e293b", inputBorder: "#334155"
+};
+const LIGHT = {
+  bg: "#f3f4f6", surface: "#ffffff", surface2: "#f9fafb",
+  border: "#e5e7eb", text: "#111827", textSub: "#374151",
+  textMuted: "#9ca3af", input: "#ffffff", inputBorder: "#e5e7eb"
+};
+const useTheme = (darkMode) => darkMode ? DARK : LIGHT;
+
+// ─── PERSIST HELPER ───────────────────────────────────────────────────────────
+const usePersist = (key, init) => {
+  const [val, setVal] = React.useState(() => {
+    try {const s = localStorage.getItem("cs_" + key);return s ? JSON.parse(s) : init;} catch {return init;}
+  });
+  const set = React.useCallback((v) => {
+    setVal((prev) => {
+      const next = typeof v === "function" ? v(prev) : v;
+      try {localStorage.setItem("cs_" + key, JSON.stringify(next));} catch {}
+      return next;
+    });
+  }, [key]);
+  return [val, set];
+};
+
+// ─── CSV EXPORT ───────────────────────────────────────────────────────────────
+const exportCSV = (leads) => {
+  const headers = ["ID", "Name", "Company", "Email", "Phone", "Location", "Category", "Products", "Qty", "Budget (AED)", "Status", "Priority", "Assignee", "Source", "Date", "Follow-up", "TRN", "Notes"];
+  const rows = leads.map((l) => [l.id, l.name, l.company, l.email, l.phone, l.location, l.category, `"${(l.products || "").replace(/"/g, '""')}"`, l.qty, l.budget, l.status, l.priority, l.assignee, l.source, l.date, l.followUp || "", l.trn || "", `"${(l.notes || "").replace(/"/g, '""')}"`]);
+  const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");a.href = url;a.download = "chipsync-leads-" + today() + ".csv";a.click();
+  URL.revokeObjectURL(url);
+};
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+const fmt = (n) => (parseFloat(n) || 0).toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtShort = (n) => {const v = parseFloat(n) || 0;return v >= 1000000 ? (v / 1000000).toFixed(1) + "M" : v >= 1000 ? (v / 1000).toFixed(0) + "K" : v.toString();};
+const today = () => new Date().toISOString().split("T")[0];
+const initials = (n) => n.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+const avatarColor = (n) => ["#7c3aed", "#2563eb", "#059669", "#d97706", "#dc2626", "#0891b2", "#be185d", "#0d9488"][n.charCodeAt(0) % 8];
+const uid = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+const daysAgo = (d) => {const diff = Date.now() - new Date(d).getTime();return Math.floor(diff / 86400000);};
+const relDate = (d) => {const da = daysAgo(d);return da === 0 ? "Today" : da === 1 ? "Yesterday" : `${da}d ago`;};
+
+// ─── INITIAL DATA ─────────────────────────────────────────────────────────────
+const INIT_LEADS = [
+{ id: "L-2041", name: "Mohammed Al Rashid", company: "TechnoCoryx IT Solutions", email: "m.rashid@technocoryx.ae", phone: "+971 50 234 5678", category: "Laptops", products: "Dell Latitude 5540 x20, Lenovo ThinkPad E15 x15", qty: 35, budget: "85000", status: "Quoted", assignee: "Alex Rivera", source: "Detailed Form", date: "2026-05-01", location: "Dubai, UAE", trn: "100342876500003", priority: "High", notes: "Urgent requirement, needs delivery within 4 days.", timeline: "ASAP", followUp: "2026-05-05", quotes: [] },
+{ id: "L-2040", name: "Sara Al Mansoori", company: "Gulf Enterprises LLC", email: "sara@gulfent.com", phone: "+971 55 901 2345", category: "Networking", products: "Cisco Catalyst 9200 x4, LC-LC OM3 Cables x100", qty: 104, budget: "42000", status: "New", assignee: "Unassigned", source: "Simple Form", date: "2026-05-01", location: "Abu Dhabi, UAE", trn: "", priority: "Medium", notes: "Fiber upgrade project for new office.", timeline: "2 weeks", followUp: "2026-05-04", quotes: [] },
+{ id: "L-2039", name: "Ahmad Karimi", company: "Karimi Brothers Trading", email: "ahmad@karimibros.com", phone: "+971 52 678 9012", category: "Servers", products: "Dell PowerEdge R750 x2, HP ProLiant DL380 x1", qty: 3, budget: "120000", status: "In Progress", assignee: "Alex Rivera", source: "Detailed Form", date: "2026-04-30", location: "Sharjah, UAE", trn: "100298765400001", priority: "High", notes: "Data center expansion. LPO confirmed.", timeline: "1 month", followUp: "2026-05-07", quotes: [] },
+{ id: "L-2038", name: "Priya Nair", company: "Stellar Solutions FZE", email: "priya.n@stellarsol.ae", phone: "+971 54 321 0987", category: "Laptops", products: "Apple MacBook Pro 14\" M3 x10", qty: 10, budget: "95000", status: "Ordered", assignee: "Alex Rivera", source: "WhatsApp", date: "2026-04-29", location: "JAFZA, Dubai", trn: "100456123700002", priority: "High", notes: "Recurring customer.", timeline: "Immediate", followUp: "", quotes: [] },
+{ id: "L-2037", name: "Khalid Al Mansoor", company: "Al Noor Contracting", email: "k.mansoor@alnoor.ae", phone: "+971 50 555 7890", category: "Peripherals", products: "Dell Monitors 27\" x30, HP Keyboards x30, Logitech Mice x30", qty: 90, budget: "55000", status: "Quoted", assignee: "Jordan Lee", source: "Website", date: "2026-04-28", location: "Dubai, UAE", trn: "100123456800004", priority: "Medium", notes: "New office setup. Bundle deal requested.", timeline: "3 weeks", followUp: "2026-05-06", quotes: [] },
+{ id: "L-2036", name: "Omar Hassan", company: "Horizon Digital Media", email: "omar@horizondm.ae", phone: "+971 56 432 1098", category: "Workstations", products: "HP Z4 G5 Workstation x5, NVIDIA RTX 4080 GPU x5", qty: 10, budget: "180000", status: "In Progress", assignee: "Jordan Lee", source: "Referral", date: "2026-04-27", location: "Media City, Dubai", trn: "100567890100005", priority: "High", notes: "Creative production company.", timeline: "2 weeks", followUp: "2026-05-08", quotes: [] },
+{ id: "L-2035", name: "Fatiha Benali", company: "Benali Import Export", email: "f.benali@benaliie.com", phone: "+971 58 765 4321", category: "Storage", products: "Seagate Exos 16TB HDD x50, Samsung 870 EVO 1TB SSD x20", qty: 70, budget: "38000", status: "Closed", assignee: "Alex Rivera", source: "Simple Form", date: "2026-04-25", location: "Ajman, UAE", trn: "", priority: "Low", notes: "Storage upgrade. Deal closed.", timeline: "Flexible", followUp: "", quotes: [] },
+{ id: "L-2034", name: "Tariq Mahmood", company: "Prime Tech Retail LLC", email: "tariq@primetech.ae", phone: "+971 55 234 6789", category: "Laptops", products: "Lenovo IdeaPad 5 x25, HP Pavilion x20", qty: 45, budget: "72000", status: "Lost", assignee: "Jordan Lee", source: "Website", date: "2026-04-24", location: "Deira, Dubai", trn: "100234567900006", priority: "Medium", notes: "Lost to competitor on price.", timeline: "Immediate", followUp: "2026-07-01", quotes: [] },
+{ id: "L-2033", name: "Rania Khalil", company: "Khalil Medical Center", email: "rania@khalilmed.ae", phone: "+971 50 876 5432", category: "Laptops", products: "Dell Latitude 7440 x8, Dell Precision 5570 x4", qty: 12, budget: "62000", status: "New", assignee: "Unassigned", source: "Referral", date: "2026-05-02", location: "Jumeirah, Dubai", trn: "100345678000007", priority: "High", notes: "Medical sector, needs software compatibility.", timeline: "1 week", followUp: "2026-05-04", quotes: [] },
+{ id: "L-2032", name: "Bilal Chaudhry", company: "Chaudhry & Sons Trading", email: "bilal@chaudhrysons.pk", phone: "+92 300 1234567", category: "Mobile Devices", products: "Samsung Galaxy S24 Ultra x20, iPhone 15 Pro x15", qty: 35, budget: "110000", status: "In Progress", assignee: "Alex Rivera", source: "WhatsApp", date: "2026-04-26", location: "Lahore, Pakistan", trn: "", priority: "Medium", notes: "International order. Upfront payment required.", timeline: "2 weeks", followUp: "2026-05-09", quotes: [] }];
+
+
+const INIT_ACTIVITIES = {
+  "L-2041": [
+  { id: "a1", type: "note", user: "Alex Rivera", text: "Customer confirmed budget. Preparing quote now.", date: "2026-05-01T10:30:00" },
+  { id: "a2", type: "call", user: "Alex Rivera", text: "Called Mohammed. Discussed specs. Needs delivery by May 5.", date: "2026-05-01T09:00:00" },
+  { id: "a3", type: "email", user: "Alex Rivera", text: "Sent intro email with company profile.", date: "2026-04-30T14:20:00" }],
+
+  "L-2039": [
+  { id: "a4", type: "note", user: "Alex Rivera", text: "LPO received from Karimi Brothers. Processing order.", date: "2026-04-30T11:00:00" },
+  { id: "a5", type: "call", user: "Alex Rivera", text: "Confirmed server specs with Ahmad.", date: "2026-04-29T15:30:00" }],
+
+  "L-2038": [
+  { id: "a6", type: "note", user: "Alex Rivera", text: "Order placed. MacBooks arriving next week.", date: "2026-04-29T09:00:00" }]
+
+};
+
+const INIT_CUSTOMERS = [
+{ id: "C-501", name: "TechnoCoryx IT Solutions", contact: "Mohammed Al Rashid", email: "m.rashid@technocoryx.ae", phone: "+971 50 234 5678", location: "Dubai, UAE", totalOrders: 3, totalValue: 245000, lastOrder: "2026-05-01", status: "Active", trn: "100342876500003", website: "technocoryx.ae", notes: "Premium recurring client. Fast decisions." },
+{ id: "C-502", name: "Stellar Solutions FZE", contact: "Priya Nair", email: "priya.n@stellarsol.ae", phone: "+971 54 321 0987", location: "JAFZA, Dubai", totalOrders: 7, totalValue: 620000, lastOrder: "2026-04-29", status: "Active", trn: "100456123700002", website: "stellarsol.ae", notes: "Annual refresh orders. High LTV." },
+{ id: "C-503", name: "Horizon Digital Media", contact: "Omar Hassan", email: "omar@horizondm.ae", phone: "+971 56 432 1098", location: "Media City, Dubai", totalOrders: 2, totalValue: 310000, lastOrder: "2026-04-27", status: "Active", trn: "100567890100005", website: "horizondm.ae", notes: "Creative agency. Needs GPU workstations." },
+{ id: "C-504", name: "Al Noor Contracting", contact: "Khalid Al Mansoor", email: "k.mansoor@alnoor.ae", phone: "+971 50 555 7890", location: "Dubai, UAE", totalOrders: 1, totalValue: 55000, lastOrder: "2026-04-28", status: "Prospect", trn: "100123456800004", website: "", notes: "Bundle deal preferred." },
+{ id: "C-505", name: "Gulf Enterprises LLC", contact: "Sara Al Mansoori", email: "sara@gulfent.com", phone: "+971 55 901 2345", location: "Abu Dhabi, UAE", totalOrders: 0, totalValue: 0, lastOrder: "—", status: "New", trn: "", website: "gulfent.com", notes: "New inquiry. Fiber project." },
+{ id: "C-506", name: "Karimi Brothers Trading", contact: "Ahmad Karimi", email: "ahmad@karimibros.com", phone: "+971 52 678 9012", location: "Sharjah, UAE", totalOrders: 4, totalValue: 480000, lastOrder: "2026-04-30", status: "Active", trn: "100298765400001", website: "", notes: "Data center client. Reliable payer." }];
+
+
+const TEAM_ACCOUNTS = [
+{ username: "demo", password: "demo1234", name: "Alex Rivera", role: "Admin", roleLabel: "Senior Sales · Admin", email: "demo@example.com" },
+{ username: "demo2", password: "demo1234", name: "Jordan Lee", role: "Sales", roleLabel: "Sales Representative", email: "demo2@example.com" },
+{ username: "manager", password: "demo1234", name: "Manager", role: "Manager", roleLabel: "Manager · View All", email: "manager@example.com" }];
+
+
+const STATUS_CFG = {
+  "New": { bg: "#dbeafe", text: "#1d4ed8", dot: "#3b82f6" },
+  "Quoted": { bg: "#fef9c3", text: "#854d0e", dot: "#eab308" },
+  "In Progress": { bg: "#fff7ed", text: "#9a3412", dot: "#f97316" },
+  "Ordered": { bg: "#dcfce7", text: "#15803d", dot: "#22c55e" },
+  "Closed": { bg: "#f0fdf4", text: "#166534", dot: "#16a34a" },
+  "Lost": { bg: "#fee2e2", text: "#991b1b", dot: "#ef4444" }
+};
+const PRIORITIES = ["High", "Medium", "Low"];
+const CATEGORIES = ["Laptops", "Desktops", "Networking", "Servers", "Storage", "Peripherals", "Mobile Devices", "Workstations", "Software", "Accessories", "Gaming", "Other"];
+const SOURCES = ["Website", "Simple Form", "Detailed Form", "WhatsApp", "Referral", "Phone", "Email", "Other"];
+const ACTIVITY_TYPES = { note: "📝", call: "📞", email: "✉️", meeting: "🤝", status: "🔄" };
+
+// ─── ICONS ────────────────────────────────────────────────────────────────────
+const IC = ({ n, s = 16, c = "currentColor" }) => {
+  const paths = {
+    dashboard: <><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></>,
+    leads: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
+    customers: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>,
+    analytics: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />,
+    pipeline: <><rect x="3" y="3" width="4" height="18" rx="1" /><rect x="10" y="8" width="4" height="13" rx="1" /><rect x="17" y="5" width="4" height="16" rx="1" /></>,
+    team: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41M21 12h-2M5 12H3M12 21v-2M12 5V3" /></>,
+    close: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
+    search: <><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></>,
+    plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
+    chevronDown: <polyline points="6 9 12 15 18 9" />,
+    chevronRight: <polyline points="9 18 15 12 9 6" />,
+    chevronLeft: <polyline points="15 18 9 12 15 6" />,
+    mail: <><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></>,
+    phone: <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8 19.79 19.79 0 01.22 1.18 2 2 0 012.22 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.18 6.18l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />,
+    location: <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></>,
+    tag: <><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></>,
+    edit: <><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></>,
+    trash: <><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" /></>,
+    dollar: <><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></>,
+    trending: <><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></>,
+    box: <><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></>,
+    check: <polyline points="20 6 9 17 4 12" />,
+    clock: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
+    bell: <><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></>,
+    logout: <><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></>,
+    file: <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></>,
+    whatsapp: null,
+    refresh: <><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" /></>,
+    calendar: <><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></>,
+    warning: <><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>,
+    eye: <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>,
+    copy: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></>,
+    print: <><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></>,
+    user: <><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></>
+  };
+  if (n === "whatsapp") return <svg width={s} height={s} viewBox="0 0 24 24" fill={c}><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>;
+  return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[n]}</svg>;
+};
+
+// ─── SHARED UI ────────────────────────────────────────────────────────────────
+const Avatar = ({ name, size = 32 }) =>
+<div style={{ width: size, height: size, borderRadius: "50%", background: avatarColor(name), display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: size * 0.35, fontWeight: 700, flexShrink: 0 }}>{initials(name)}</div>;
+
+
+const StatusBadge = ({ status }) => {
+  const c = STATUS_CFG[status] || { bg: "#f3f4f6", text: "#374151", dot: "#6b7280" };
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: c.bg, color: c.text, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: c.dot, flexShrink: 0 }}></span>{status}</span>;
+};
+
+const PriBadge = ({ p }) => {
+  const c = { High: { bg: "#fee2e2", text: "#991b1b" }, Medium: { bg: "#fff7ed", text: "#9a3412" }, Low: { bg: "#f0fdf4", text: "#166534" } }[p] || {};
+  return <span style={{ padding: "2px 7px", borderRadius: 4, background: c.bg, color: c.text, fontSize: 10, fontWeight: 700 }}>{p}</span>;
+};
+
+const MetricCard = ({ label, value, sub, icon, accent, trend, trendUp = true, T = LIGHT }) =>
+<div className="fade-in" style={{ background: T.surface, borderRadius: 12, padding: "18px 20px", border: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 500 }}>{label}</span>
+      <div style={{ width: 34, height: 34, borderRadius: 8, background: accent + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <IC n={icon} s={16} c={accent} />
+      </div>
+    </div>
+    <div style={{ fontSize: 26, fontWeight: 800, color: T.text, letterSpacing: "-0.5px" }}>{value}</div>
+    {sub && <div style={{ fontSize: 11, color: T.textMuted }}>{sub}</div>}
+    {trend && <div style={{ fontSize: 11, fontWeight: 600, color: trendUp ? "#22c55e" : "#ef4444" }}>{trendUp ? "↑" : "↓"} {trend}</div>}
+  </div>;
+
+
+const Btn = ({ children, onClick, variant = "primary", accent = "#f59e0b", small = false, style: s = {} }) => {
+  const base = { display: "flex", alignItems: "center", gap: 6, borderRadius: 8, fontWeight: 600, cursor: "pointer", border: "none", fontSize: small ? 11 : 13, padding: small ? "5px 10px" : "9px 16px", transition: "all 0.15s", ...s };
+  if (variant === "primary") return <button onClick={onClick} style={{ ...base, background: accent, color: "#fff" }}>{children}</button>;
+  if (variant === "secondary") return <button onClick={onClick} style={{ ...base, background: "#f3f4f6", color: "#374151", border: "1px solid #e5e7eb" }}>{children}</button>;
+  if (variant === "ghost") return <button onClick={onClick} style={{ ...base, background: "none", color: "#6b7280", border: "1px solid #e5e7eb" }}>{children}</button>;
+  if (variant === "danger") return <button onClick={onClick} style={{ ...base, background: "#fee2e2", color: "#dc2626", border: "1px solid #fecaca" }}>{children}</button>;
+};
+
+const Input = ({ label, value, onChange, type = "text", placeholder = "", required = false, style: s = {} }) =>
+<div style={{ display: "flex", flexDirection: "column", gap: 5, ...s }}>
+    {label && <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}{required && <span style={{ color: "#ef4444" }}> *</span>}</label>}
+    <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} required={required} style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, outline: "none", background: "#fff", color: "#111827" }} onFocus={(e) => e.target.style.borderColor = "#f59e0b"} onBlur={(e) => e.target.style.borderColor = "#e5e7eb"} />
+  </div>;
+
+
+const Select = ({ label, value, onChange, options, required = false, style: s = {} }) =>
+<div style={{ display: "flex", flexDirection: "column", gap: 5, ...s }}>
+    {label && <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}{required && <span style={{ color: "#ef4444" }}> *</span>}</label>}
+    <select value={value} onChange={(e) => onChange(e.target.value)} required={required} style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, outline: "none", background: "#fff", color: "#111827", cursor: "pointer" }}>
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+    </select>
+  </div>;
+
+
+const TextArea = ({ label, value, onChange, placeholder = "", rows = 3, style: s = {} }) =>
+<div style={{ display: "flex", flexDirection: "column", gap: 5, ...s }}>
+    {label && <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</label>}
+    <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows} style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif", background: "#fff", color: "#111827" }} onFocus={(e) => e.target.style.borderColor = "#f59e0b"} onBlur={(e) => e.target.style.borderColor = "#e5e7eb"} />
+  </div>;
+
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
+const LoginScreen = ({ onLogin }) => {
+  const [username, setUsername] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [showPw, setShowPw] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();setError("");setLoading(true);
+    setTimeout(() => {
+      const acc = TEAM_ACCOUNTS.find((a) => a.username === username.trim().toLowerCase() && a.password === password);
+      acc ? onLogin(acc) : (setError("Invalid username or password."), setLoading(false));
+    }, 600);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#111827", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ position: "fixed", inset: 0, backgroundImage: "radial-gradient(circle at 20% 50%,rgba(245,158,11,0.07) 0%,transparent 60%),radial-gradient(circle at 80% 20%,rgba(124,58,237,0.05) 0%,transparent 50%)", pointerEvents: "none" }} />
+      <div style={{ width: "100%", maxWidth: 400, position: "relative", zIndex: 1 }}>
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <img src="logo.png" alt="ChipSync" style={{ height: 40, objectFit: "contain", filter: "invert(1) brightness(2)" }} />
+          </div>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 10 }}>CRM · Lead Management Platform</p>
+        </div>
+        <div style={{ background: "#1f2937", borderRadius: 16, border: "1px solid #374151", padding: "32px", boxShadow: "0 24px 48px rgba(0,0,0,0.4)" }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#f9fafb", marginBottom: 4 }}>Sign in</h2>
+          <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 24 }}>Team members only</p>
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#d1d5db" }}>Username</label>
+              <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. mubashir" required style={{ padding: "11px 14px", background: "#111827", border: "1px solid #374151", borderRadius: 8, fontSize: 14, color: "#f9fafb", outline: "none" }} onFocus={(e) => e.target.style.borderColor = "#f59e0b"} onBlur={(e) => e.target.style.borderColor = "#374151"} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#d1d5db" }}>Password</label>
+              <div style={{ position: "relative" }}>
+                <input type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" required style={{ width: "100%", padding: "11px 42px 11px 14px", background: "#111827", border: "1px solid #374151", borderRadius: 8, fontSize: 14, color: "#f9fafb", outline: "none" }} onFocus={(e) => e.target.style.borderColor = "#f59e0b"} onBlur={(e) => e.target.style.borderColor = "#374151"} />
+                <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>
+                  <IC n="eye" s={15} c="#6b7280" />
+                </button>
+              </div>
+            </div>
+            {error && <div style={{ display: "flex", gap: 7, alignItems: "center", padding: "9px 12px", background: "#fee2e2", borderRadius: 7, border: "1px solid #fecaca" }}><IC n="warning" s={13} c="#dc2626" /><span style={{ fontSize: 12, color: "#dc2626" }}>{error}</span></div>}
+            <button type="submit" disabled={loading} style={{ padding: "12px", background: loading ? "#d97706" : "#f59e0b", border: "none", borderRadius: 8, color: "#111827", fontSize: 14, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              {loading ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>Signing in…</> : "Sign In"}
+            </button>
+          </form>
+          <div style={{ marginTop: 18, padding: "12px 14px", background: "#111827", borderRadius: 8, border: "1px solid #374151" }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Demo Accounts</p>
+            {TEAM_ACCOUNTS.map((a) =>
+            <button key={a.username} onClick={() => {setUsername(a.username);setPassword(a.password);setError("");}} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "none", border: "1px solid #374151", borderRadius: 6, cursor: "pointer", marginBottom: 4, transition: "border-color 0.1s" }} onMouseEnter={(e) => e.currentTarget.style.borderColor = "#f59e0b"} onMouseLeave={(e) => e.currentTarget.style.borderColor = "#374151"}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}><Avatar name={a.name} size={22} /><span style={{ fontSize: 12, color: "#d1d5db", fontWeight: 500 }}>{a.name}</span></div>
+                <span style={{ fontSize: 10, color: "#6b7280" }}>{a.roleLabel}</span>
+              </button>
+            )}
+          </div>
+        </div>
+        <p style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: "#4b5563" }}>sales@chipsync.ae · Dubai, UAE</p>
+      </div>
+    </div>);
+
+};
+
+// ─── ADD/EDIT LEAD MODAL ──────────────────────────────────────────────────────
+const LeadModal = ({ lead = null, onSave, onClose, accent }) => {
+  const isEdit = !!lead;
+  const blank = { name: "", company: "", email: "", phone: "", location: "Dubai, UAE", category: "Laptops", products: "", qty: "", budget: "", status: "New", priority: "Medium", source: "Website", assignee: "Unassigned", trn: "", notes: "", timeline: "", followUp: "" };
+  const [form, setForm] = React.useState(lead ? { ...blank, ...lead } : blank);
+  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({ ...form, id: lead?.id || "L-" + uid(), date: lead?.date || today(), quotes: lead?.quotes || [] });
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }} onClick={onClose} />
+      <div style={{ position: "relative", width: 680, maxHeight: "90vh", background: "#fff", borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.25)", animation: "slideUp 0.2s ease" }}>
+        <div style={{ padding: "18px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111827" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{isEdit ? "Edit Lead" : "New Lead"}</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: "#fff", marginTop: 2 }}>{isEdit ? form.company : "Add a new lead"}</div>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #374151", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><IC n="close" s={15} c="#9ca3af" /></button>
+        </div>
+        <form onSubmit={handleSubmit} style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid #f3f4f6" }}>Contact Information</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Input label="Full Name" value={form.name} onChange={(v) => set("name", v)} required />
+              <Input label="Company Name" value={form.company} onChange={(v) => set("company", v)} required />
+              <Input label="Email" type="email" value={form.email} onChange={(v) => set("email", v)} required />
+              <Input label="Phone" value={form.phone} onChange={(v) => set("phone", v)} required />
+              <Input label="Location" value={form.location} onChange={(v) => set("location", v)} />
+              <Input label="TRN (optional)" value={form.trn} onChange={(v) => set("trn", v)} />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid #f3f4f6" }}>Product Requirements</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Select label="Category" value={form.category} onChange={(v) => set("category", v)} options={CATEGORIES} />
+              <Input label="Budget (AED)" type="number" value={form.budget} onChange={(v) => set("budget", v)} />
+              <TextArea label="Products Needed" value={form.products} onChange={(v) => set("products", v)} placeholder="Dell Latitude 5540 x20, ..." style={{ gridColumn: "1/-1" }} />
+              <Input label="Quantity" value={form.qty} onChange={(v) => set("qty", v)} />
+              <Input label="Timeline" value={form.timeline} onChange={(v) => set("timeline", v)} placeholder="e.g. 2 weeks" />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10, paddingBottom: 6, borderBottom: "1px solid #f3f4f6" }}>Assignment & Status</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+              <Select label="Status" value={form.status} onChange={(v) => set("status", v)} options={Object.keys(STATUS_CFG)} />
+              <Select label="Priority" value={form.priority} onChange={(v) => set("priority", v)} options={PRIORITIES} />
+              <Select label="Assignee" value={form.assignee} onChange={(v) => set("assignee", v)} options={["Unassigned", "Alex Rivera", "Jordan Lee", "Manager"]} />
+              <Select label="Lead Source" value={form.source} onChange={(v) => set("source", v)} options={SOURCES} />
+              <Input label="Follow-up Date" type="date" value={form.followUp} onChange={(v) => set("followUp", v)} />
+            </div>
+          </div>
+          <TextArea label="Notes" value={form.notes} onChange={(v) => set("notes", v)} rows={2} />
+        </form>
+        <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#f9fafb" }}>
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn variant="primary" accent={accent} onClick={() => {const e = { preventDefault: () => {} };const form2 = { ...form, id: lead?.id || "L-" + uid(), date: lead?.date || today(), quotes: lead?.quotes || [] };onSave(form2);}}>{isEdit ? "Save Changes" : "Add Lead"}</Btn>
+        </div>
+      </div>
+    </div>);
+
+};
+
+// ─── CUSTOMER MODAL ───────────────────────────────────────────────────────────
+const CustomerModal = ({ customer = null, onSave, onClose, accent }) => {
+  const blank = { name: "", contact: "", email: "", phone: "", location: "Dubai, UAE", status: "New", trn: "", website: "", notes: "", totalOrders: 0, totalValue: 0, lastOrder: "—" };
+  const [form, setForm] = React.useState(customer ? { ...blank, ...customer } : blank);
+  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }} onClick={onClose} />
+      <div style={{ position: "relative", width: 560, background: "#fff", borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.25)", animation: "slideUp 0.2s ease" }}>
+        <div style={{ padding: "18px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111827" }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>{customer ? "Edit Customer" : "Add Customer"}</div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #374151", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><IC n="close" s={15} c="#9ca3af" /></button>
+        </div>
+        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input label="Company Name" value={form.name} onChange={(v) => set("name", v)} required />
+            <Input label="Contact Person" value={form.contact} onChange={(v) => set("contact", v)} required />
+            <Input label="Email" type="email" value={form.email} onChange={(v) => set("email", v)} required />
+            <Input label="Phone" value={form.phone} onChange={(v) => set("phone", v)} />
+            <Input label="Location" value={form.location} onChange={(v) => set("location", v)} />
+            <Input label="TRN" value={form.trn} onChange={(v) => set("trn", v)} />
+            <Input label="Website" value={form.website} onChange={(v) => set("website", v)} />
+            <Select label="Status" value={form.status} onChange={(v) => set("status", v)} options={["New", "Prospect", "Active", "Inactive"]} />
+          </div>
+          <TextArea label="Notes" value={form.notes} onChange={(v) => set("notes", v)} rows={2} />
+        </div>
+        <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#f9fafb" }}>
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn variant="primary" accent={accent} onClick={() => onSave({ ...form, id: customer?.id || "C-" + uid() })}>{customer ? "Save Changes" : "Add Customer"}</Btn>
+        </div>
+      </div>
+    </div>);
+
+};
+
+// ─── QUOTATION BUILDER ────────────────────────────────────────────────────────
+const QuotationBuilder = ({ lead, onClose, onSaveQuote, accent }) => {
+  const quoteNum = "QT-" + lead.id.replace("L-", "") + "-" + new Date().getFullYear() + "-" + uid().slice(0, 4);
+  const todayStr = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const validUntil = new Date(Date.now() + 7 * 864e5).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const parseItems = () => {
+    if (!lead.products) return [{ desc: "", qty: 1, unitPrice: "", total: 0 }];
+    return lead.products.split(",").map((p) => {
+      const m = p.trim().match(/^(.+?)\s+x(\d+)$/i);
+      return m ? { desc: m[1].trim(), qty: parseInt(m[2]), unitPrice: "", total: 0 } : { desc: p.trim(), qty: 1, unitPrice: "", total: 0 };
+    });
+  };
+  const [items, setItems] = React.useState(parseItems);
+  const [vatPct, setVatPct] = React.useState(5);
+  const [notes, setNotes] = React.useState("Thank you for your inquiry. We look forward to doing business with you.");
+  const [payTerms, setPayTerms] = React.useState("50% advance, 50% on delivery");
+  const [delivery, setDelivery] = React.useState("2–4 business days (UAE)");
+  const [validity, setValidity] = React.useState("7 days");
+
+  const updateItem = (i, field, val) => {
+    setItems((prev) => {
+      const n = [...prev];n[i] = { ...n[i], [field]: val };
+      n[i].total = (parseFloat(n[i].unitPrice) || 0) * (parseFloat(n[i].qty) || 0);
+      return n;
+    });
+  };
+  const addItem = () => setItems((p) => [...p, { desc: "", qty: 1, unitPrice: "", total: 0 }]);
+  const removeItem = (i) => setItems((p) => p.filter((_, idx) => idx !== i));
+  const subtotal = items.reduce((s, it) => s + (it.total || 0), 0);
+  const vat = subtotal * (vatPct / 100);
+  const grand = subtotal + vat;
+
+  const openPrint = () => {
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${quoteNum}</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#1f2937;background:#fff;font-size:13px}@page{size:A4;margin:0}.page{width:210mm;min-height:297mm;padding:0}.header{background:#111827;padding:32px 40px 24px;display:flex;justify-content:space-between;align-items:flex-start}.logo-box{width:42px;height:42px;background:#f59e0b;border-radius:10px;display:flex;align-items:center;justify-content:center}.logo-row{display:flex;align-items:center;gap:12px}.logo-text{color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px}.company-sub{color:#9ca3af;font-size:11px;margin-top:2px}.quote-meta{text-align:right;color:#d1d5db}.quote-num{font-size:20px;font-weight:700;color:#f59e0b}.gold-bar{height:4px;background:linear-gradient(90deg,#f59e0b,#d97706)}.body{padding:32px 40px}.bill-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px}.bill-box{background:#f9fafb;border-radius:8px;padding:16px}.bill-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#9ca3af;margin-bottom:8px}.bill-name{font-size:15px;font-weight:700;color:#111827;margin-bottom:4px}.bill-detail{font-size:12px;color:#6b7280;margin-top:2px}table{width:100%;border-collapse:collapse;margin-bottom:20px}thead tr{background:#111827;color:#fff}thead th{padding:10px 12px;text-align:left;font-size:11px;font-weight:600;letter-spacing:0.04em}tbody tr{border-bottom:1px solid #f3f4f6}tbody tr:nth-child(even){background:#fafafa}tbody td{padding:10px 12px;font-size:12px}.totals{margin-left:auto;width:260px}.total-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f3f4f6}.total-row.grand{font-size:16px;font-weight:700;border-bottom:none;padding-top:10px;border-top:2px solid #f59e0b;margin-top:4px}.terms{margin-top:24px;padding:16px;background:#f9fafb;border-radius:8px;border-left:3px solid #f59e0b}.terms-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#6b7280;margin-bottom:8px}.terms-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.term-item{font-size:12px;color:#374151}.notes-box{margin-top:16px;font-size:12px;color:#6b7280;padding:12px 16px;background:#fffbeb;border-radius:8px;border:1px solid #fde68a}.footer{margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:11px;color:#9ca3af}.sig-line{margin-top:40px;border-top:1px solid #d1d5db;padding-top:8px;font-size:11px;color:#9ca3af;width:180px}.authorized{display:flex;gap:40px;margin-top:24px}@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head>
+<body><div class="page">
+<div class="header"><div class="logo-row"><div><div class="logo-text"><img src="logo.png" alt="ChipSync" style="height:24px;filter:invert(1) brightness(2);vertical-align:middle"/></div><div class="company-sub">Technology Solutions · Dubai, UAE</div><div class="company-sub">sales@chipsync.ae · Authorized Dell · Lenovo · Apple</div></div></div><div class="quote-meta"><div class="quote-num">${quoteNum}</div><div style="margin-top:6px;font-size:12px">Date: ${todayStr}</div><div style="font-size:12px">Valid Until: ${validUntil}</div></div></div>
+<div class="gold-bar"></div>
+<div class="body">
+<div class="bill-grid"><div class="bill-box"><div class="bill-label">Bill To</div><div class="bill-name">${lead.company}</div><div class="bill-detail">${lead.name}</div><div class="bill-detail">${lead.email}</div><div class="bill-detail">${lead.phone}</div><div class="bill-detail">${lead.location}</div>${lead.trn ? `<div class="bill-detail" style="margin-top:6px">TRN: ${lead.trn}</div>` : ""}</div><div class="bill-box"><div class="bill-label">Quote Details</div><div class="bill-detail"><b>Quote No:</b> ${quoteNum}</div><div class="bill-detail"><b>Ref Lead:</b> ${lead.id}</div><div class="bill-detail"><b>Category:</b> ${lead.category}</div><div class="bill-detail"><b>Payment:</b> ${payTerms}</div><div class="bill-detail"><b>Delivery:</b> ${delivery}</div><div class="bill-detail"><b>Valid For:</b> ${validity}</div></div></div>
+<table><thead><tr><th style="width:36px">#</th><th>Description</th><th style="width:60px;text-align:right">Qty</th><th style="width:120px;text-align:right">Unit Price (AED)</th><th style="width:120px;text-align:right">Total (AED)</th></tr></thead><tbody>${items.map((it, i) => `<tr><td style="color:#9ca3af">${i + 1}</td><td style="font-weight:500">${it.desc || "—"}</td><td style="text-align:right">${it.qty}</td><td style="text-align:right">${it.unitPrice ? parseFloat(it.unitPrice).toLocaleString("en-AE", { minimumFractionDigits: 2 }) : "—"}</td><td style="text-align:right;font-weight:600">${it.total ? it.total.toLocaleString("en-AE", { minimumFractionDigits: 2 }) : "—"}</td></tr>`).join("")}</tbody></table>
+<div class="totals"><div class="total-row"><span>Subtotal</span><span>AED ${fmt(subtotal)}</span></div><div class="total-row"><span>VAT (${vatPct}%)</span><span>AED ${fmt(vat)}</span></div><div class="total-row grand"><span>Grand Total</span><span style="color:#d97706">AED ${fmt(grand)}</span></div></div>
+<div class="terms"><div class="terms-title">Terms &amp; Conditions</div><div class="terms-grid"><div class="term-item"><b>Payment: </b>${payTerms}</div><div class="term-item"><b>Delivery: </b>${delivery}</div><div class="term-item"><b>Validity: </b>${validity}</div><div class="term-item"><b>Warranty: </b>As per manufacturer</div></div></div>
+<div class="notes-box">${notes}</div>
+<div class="authorized"><div><div class="sig-line">Authorized Signature</div></div><div><div class="sig-line">Company Stamp</div></div></div>
+<div class="footer"><span>ChipSync Technology Solutions · Dubai, UAE · sales@chipsync.ae</span><span>Authorized Dell · Lenovo · Apple Partner</span></div>
+</div></div></body></html>`;
+    const w = window.open("", "_blank", "width=900,height=700");
+    w.document.write(html);w.document.close();
+    setTimeout(() => w.print(), 600);
+    onSaveQuote({ id: quoteNum, date: today(), total: grand, status: "Sent", items: [...items] });
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(3px)" }} onClick={onClose} />
+      <div style={{ position: "relative", width: 700, maxHeight: "92vh", background: "#fff", borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.3)", animation: "slideUp 0.2s ease" }}>
+        <div style={{ padding: "18px 24px", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#111827" }}>
+          <div><div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Quotation Builder</div><div style={{ fontSize: 17, fontWeight: 700, color: "#fff", marginTop: 2 }}>{lead.company} · {quoteNum}</div></div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #374151", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><IC n="close" s={15} c="#9ca3af" /></button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em" }}>Line Items</div>
+              <Btn variant="secondary" small onClick={addItem}><IC n="plus" s={12} /> Add Item</Btn>
+            </div>
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 130px 110px 28px", gap: 6, padding: "7px 8px", background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["Description", "Qty", "Unit Price (AED)", "Total (AED)", ""].map((h, i) =>
+                <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: i >= 2 && i < 4 ? "right" : "left" }}>{h}</div>
+                )}
+              </div>
+              {items.map((it, i) =>
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 70px 130px 110px 28px", gap: 6, padding: "7px 8px", borderBottom: i < items.length - 1 ? "1px solid #f3f4f6" : "none", alignItems: "center" }}>
+                  <input value={it.desc} onChange={(e) => updateItem(i, "desc", e.target.value)} placeholder="Product description" style={{ padding: "6px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, outline: "none" }} />
+                  <input type="number" value={it.qty} onChange={(e) => updateItem(i, "qty", e.target.value)} min={1} style={{ padding: "6px 8px", border: "1px solid #e5e7eb", borderRadius: 6, fontSize: 12, textAlign: "center", outline: "none" }} />
+                  <input type="number" value={it.unitPrice} onChange={(e) => updateItem(i, "unitPrice", e.target.value)} placeholder="0.00" style={{ padding: "6px 8px", border: `1.5px solid ${it.unitPrice ? accent : "#e5e7eb"}`, borderRadius: 6, fontSize: 12, textAlign: "right", outline: "none" }} />
+                  <div style={{ textAlign: "right", fontSize: 13, fontWeight: 700, color: it.total ? "#111827" : "#d1d5db" }}>{it.total ? it.total.toLocaleString("en-AE", { minimumFractionDigits: 2 }) : "—"}</div>
+                  <button onClick={() => removeItem(i)} style={{ width: 24, height: 24, borderRadius: 5, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><IC n="close" s={11} c="#9ca3af" /></button>
+                </div>
+              )}
+            </div>
+            <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+              <div style={{ width: 260, display: "flex", flexDirection: "column", gap: 5 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6b7280" }}><span>Subtotal</span><span style={{ fontWeight: 600, color: "#111827" }}>AED {fmt(subtotal)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6b7280", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>VAT <select value={vatPct} onChange={(e) => setVatPct(Number(e.target.value))} style={{ padding: "2px 6px", border: "1px solid #e5e7eb", borderRadius: 4, fontSize: 12, background: "#fff" }}><option value={0}>0%</option><option value={5}>5%</option><option value={10}>10%</option></select></div>
+                  <span style={{ fontWeight: 600, color: "#111827" }}>AED {fmt(vat)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800, color: "#111827", borderTop: `2px solid ${accent}`, paddingTop: 8, marginTop: 4 }}><span>Grand Total</span><span style={{ color: accent }}>AED {fmt(grand)}</span></div>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input label="Payment Terms" value={payTerms} onChange={setPayTerms} />
+            <Input label="Delivery Timeline" value={delivery} onChange={setDelivery} />
+            <Input label="Quote Validity" value={validity} onChange={setValidity} />
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>VAT Rate</label>
+              <select value={vatPct} onChange={(e) => setVatPct(Number(e.target.value))} style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 13, background: "#fff" }}>
+                <option value={0}>0%</option><option value={5}>5%</option><option value={10}>10%</option>
+              </select>
+            </div>
+          </div>
+          <TextArea label="Notes to Customer" value={notes} onChange={setNotes} rows={2} />
+        </div>
+        <div style={{ padding: "14px 24px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 10, justifyContent: "flex-end", background: "#f9fafb" }}>
+          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          <Btn variant="primary" accent="#111827" onClick={openPrint}><IC n="print" s={14} c="#fff" /> Print / Save PDF</Btn>
+        </div>
+      </div>
+    </div>);
+
+};
+
+// ─── ACTIVITY TIMELINE ────────────────────────────────────────────────────────
+const ActivityFeed = ({ leadId, activities, onAdd, currentUser, accent }) => {
+  const [type, setType] = React.useState("note");
+  const [text, setText] = React.useState("");
+  const items = (activities[leadId] || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const addActivity = () => {
+    if (!text.trim()) return;
+    onAdd(leadId, { id: "a" + uid(), type, user: currentUser.name, text: text.trim(), date: new Date().toISOString() });
+    setText("");
+  };
+
+  const typeColors = { note: "#7c3aed", call: "#0891b2", email: "#059669", meeting: "#d97706", status: "#374151" };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Add activity */}
+      <div style={{ background: "#f9fafb", borderRadius: 10, padding: 12, border: "1px solid #e5e7eb" }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          {Object.keys(ACTIVITY_TYPES).map((t) =>
+          <button key={t} onClick={() => setType(t)} style={{ padding: "4px 10px", borderRadius: 20, border: `1.5px solid ${type === t ? typeColors[t] : "#e5e7eb"}`, background: type === t ? typeColors[t] + "14" : "#fff", color: type === t ? typeColors[t] : "#6b7280", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+              {ACTIVITY_TYPES[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={`Log a ${type}…`} rows={2} style={{ flex: 1, padding: "7px 10px", border: "1px solid #e5e7eb", borderRadius: 7, fontSize: 12, resize: "none", fontFamily: "'DM Sans',sans-serif", outline: "none" }} />
+          <button onClick={addActivity} style={{ padding: "0 14px", background: accent, border: "none", borderRadius: 7, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", alignSelf: "stretch" }}>Log</button>
+        </div>
+      </div>
+      {/* Feed */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.length === 0 && <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: "16px 0" }}>No activity yet</div>}
+        {items.map((a) =>
+        <div key={a.id} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ width: 28, height: 28, borderRadius: "50%", background: typeColors[a.type] + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0, marginTop: 1 }}>{ACTIVITY_TYPES[a.type]}</div>
+            <div style={{ flex: 1, background: "#fff", borderRadius: 8, padding: "9px 12px", border: "1px solid #f3f4f6" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#374151" }}>{a.user}</span>
+                <span style={{ fontSize: 10, color: "#9ca3af" }}>{new Date(a.date).toLocaleString("en-AE", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+              </div>
+              <div style={{ fontSize: 12, color: "#374151" }}>{a.text}</div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>);
+
+};
+
+// ─── LEAD DRAWER ──────────────────────────────────────────────────────────────
+const LeadDrawer = ({ lead, onClose, onUpdate, activities, onAddActivity, onDelete, currentUser, accent }) => {
+  const [tab, setTab] = React.useState("details");
+  const [status, setStatus] = React.useState(lead.status);
+  const [assignee, setAssignee] = React.useState(lead.assignee);
+  const [showQuote, setShowQuote] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
+
+  const handleStatus = (s) => {setStatus(s);onUpdate({ ...lead, status: s });};
+  const handleAssignee = (a) => {setAssignee(a);onUpdate({ ...lead, assignee: a });};
+  const handleSaveQuote = (q) => {
+    const updated = { ...lead, quotes: [...(lead.quotes || []), q], status: "Quoted" };
+    onUpdate(updated);setStatus("Quoted");
+  };
+
+  const quotes = lead.quotes || [];
+  const tabs = ["details", "activity", "quotes"];
+
+  return (
+    <>
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex" }}>
+      <div style={{ flex: 1, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }} onClick={onClose} />
+      <div className="slide-in" style={{ width: 540, background: "#fff", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", boxShadow: "-8px 0 32px rgba(0,0,0,0.15)" }}>
+        {/* Header */}
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid #e5e7eb", position: "sticky", top: 0, background: "#fff", zIndex: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <Avatar name={lead.name} size={40} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: "#111827" }}>{lead.name}</div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>{lead.company}</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => setEditing(true)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><IC n="edit" s={14} c="#6b7280" /></button>
+              <button onClick={() => {if (confirm("Delete this lead?")) {onDelete(lead.id);onClose();}}} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #fee2e2", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><IC n="trash" s={14} c="#ef4444" /></button>
+              <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><IC n="close" s={15} c="#6b7280" /></button>
+            </div>
+          </div>
+          {/* Status chips */}
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
+            {Object.keys(STATUS_CFG).map((s) =>
+              <button key={s} onClick={() => handleStatus(s)} style={{ padding: "3px 11px", borderRadius: 20, border: `1.5px solid ${status === s ? accent : "#e5e7eb"}`, background: status === s ? accent : "#fff", color: status === s ? "#fff" : "#6b7280", cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "all 0.12s" }}>{s}</button>
+              )}
+          </div>
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e5e7eb" }}>
+            {tabs.map((t) =>
+              <button key={t} onClick={() => setTab(t)} style={{ padding: "7px 14px", background: "none", border: "none", borderBottom: `2px solid ${tab === t ? accent : "transparent"}`, color: tab === t ? accent : "#6b7280", fontWeight: tab === t ? 700 : 500, fontSize: 12, cursor: "pointer", textTransform: "capitalize", marginBottom: "-1px", transition: "all 0.15s" }}>
+                {t}{t === "quotes" && quotes.length > 0 ? ` (${quotes.length})` : ""}
+              </button>
+              )}
+          </div>
+        </div>
+
+        <div style={{ padding: "16px 22px", flex: 1 }}>
+          {tab === "details" &&
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Info grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {[["📧 Email", lead.email], ["📞 Phone", lead.phone], ["📍 Location", lead.location], ["🏷 Source", lead.source], ["📦 Category", lead.category], ["💰 Budget", "AED " + (parseInt(lead.budget) || 0).toLocaleString()], ["📅 Date", lead.date], ["⏱ Timeline", lead.timeline], ["👤 Assignee", lead.assignee], ["🔔 Follow-up", lead.followUp || "Not set"]].map(([k, v]) =>
+                <div key={k} style={{ background: "#f9fafb", borderRadius: 8, padding: "9px 11px" }}>
+                    <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 2 }}>{k}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{v || "—"}</div>
+                  </div>
+                )}
+              </div>
+              {lead.trn && <div style={{ fontSize: 12, color: "#374151", padding: "8px 12px", background: "#f3f4f6", borderRadius: 6 }}><b>TRN:</b> {lead.trn}</div>}
+              {lead.products && <div style={{ background: "#f9fafb", borderRadius: 8, padding: "10px 12px" }}><div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4 }}>PRODUCTS</div><div style={{ fontSize: 12, color: "#374151", lineHeight: 1.6 }}>{lead.products}</div></div>}
+              {lead.notes && <div style={{ background: "#fffbeb", borderRadius: 8, padding: "10px 12px", border: "1px solid #fde68a" }}><div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4 }}>NOTES</div><div style={{ fontSize: 12, color: "#374151" }}>{lead.notes}</div></div>}
+              {/* Assignee */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Assignee</div>
+                <select value={assignee} onChange={(e) => handleAssignee(e.target.value)} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, background: "#fff", cursor: "pointer" }}>
+                  <option>Unassigned</option><option>Alex Rivera</option><option>Jordan Lee</option><option>Manager</option>
+                </select>
+              </div>
+              {/* Priority + follow-up */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Priority</div>
+                  <select value={lead.priority} onChange={(e) => onUpdate({ ...lead, priority: e.target.value })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, background: "#fff", cursor: "pointer" }}>
+                    {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Follow-up Date</div>
+                  <input type="date" value={lead.followUp || ""} onChange={(e) => onUpdate({ ...lead, followUp: e.target.value })} style={{ width: "100%", padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 13, background: "#fff", outline: "none" }} />
+                </div>
+              </div>
+              {/* Actions */}
+              <div style={{ display: "flex", gap: 7 }}>
+                <a href={`mailto:${lead.email}`} style={{ flex: 1, padding: "9px 0", background: "#f3f4f6", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", textDecoration: "none", color: "#374151", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}><IC n="mail" s={13} /> Email</a>
+                <a href={`tel:${lead.phone}`} style={{ flex: 1, padding: "9px 0", background: "#f3f4f6", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", textDecoration: "none", color: "#374151", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}><IC n="phone" s={13} /> Call</a>
+                <button style={{ flex: 1, padding: "9px 0", background: "#25d366", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}><IC n="whatsapp" s={13} c="#fff" /> WhatsApp</button>
+              </div>
+              <button onClick={() => setShowQuote(true)} style={{ width: "100%", padding: "12px", background: "#111827", border: `2px solid ${accent}`, borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <IC n="file" s={15} c={accent} />
+                <span style={{ color: accent }}>Create Quotation</span>
+                <span style={{ fontSize: 11, color: "#6b7280", fontWeight: 400 }}>— generate letterhead PDF</span>
+              </button>
+            </div>
+            }
+
+          {tab === "activity" &&
+            <ActivityFeed leadId={lead.id} activities={activities} onAdd={onAddActivity} currentUser={currentUser} accent={accent} />
+            }
+
+          {tab === "quotes" &&
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button onClick={() => setShowQuote(true)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 16px", background: accent, border: "none", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", alignSelf: "flex-start" }}>
+                <IC n="plus" s={14} c="#fff" /> New Quotation
+              </button>
+              {quotes.length === 0 && <div style={{ fontSize: 12, color: "#9ca3af", textAlign: "center", padding: "24px 0" }}>No quotes yet. Click above to create one.</div>}
+              {quotes.map((q) =>
+              <div key={q.id} style={{ background: "#f9fafb", borderRadius: 10, padding: "12px 14px", border: "1px solid #e5e7eb" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "#111827", fontFamily: "'DM Mono',monospace" }}>{q.id}</div>
+                      <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{q.date}</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: accent }}>AED {fmt(q.total)}</div>
+                      <span style={{ fontSize: 10, padding: "2px 7px", background: "#dcfce7", color: "#15803d", borderRadius: 10, fontWeight: 600 }}>{q.status}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            }
+        </div>
+      </div>
+    </div>
+    {showQuote && <QuotationBuilder lead={lead} onClose={() => setShowQuote(false)} onSaveQuote={handleSaveQuote} accent={accent} />}
+    {editing && <LeadModal lead={lead} onSave={(l) => {onUpdate(l);setEditing(false);}} onClose={() => setEditing(false)} accent={accent} />}
+    </>);
+
+};
+
+// ─── LEADS PAGE ───────────────────────────────────────────────────────────────
+const LeadsPage = ({ leads, onUpdate, onAdd, onDelete, activities, onAddActivity, currentUser, accent }) => {
+  const [search, setSearch] = React.useState("");
+  const [filterStatus, setFilterStatus] = React.useState("All");
+  const [filterPriority, setFilterPriority] = React.useState("All");
+  const [filterAssignee, setFilterAssignee] = React.useState("All");
+  const [selected, setSelected] = React.useState(null);
+  const [showAdd, setShowAdd] = React.useState(false);
+  const [view, setView] = React.useState("table");
+
+  const filtered = leads.filter((l) => {
+    const ms = !search || [l.name, l.company, l.id, l.category, l.email].some((f) => f.toLowerCase().includes(search.toLowerCase()));
+    const mst = filterStatus === "All" || l.status === filterStatus;
+    const mp = filterPriority === "All" || l.priority === filterPriority;
+    const ma = filterAssignee === "All" || l.assignee === filterAssignee;
+    return ms && mst && mp && ma;
+  });
+
+  const statusCounts = Object.keys(STATUS_CFG).reduce((a, s) => ({ ...a, [s]: leads.filter((l) => l.status === s).length }), {});
+  const overdueCount = leads.filter((l) => l.followUp && l.followUp < today() && !["Closed", "Lost", "Ordered"].includes(l.status)).length;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ padding: "20px 26px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>Leads & Inquiries</h1>
+          <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{leads.length} total · {filtered.length} shown{overdueCount > 0 ? <span style={{ color: "#ef4444", marginLeft: 8 }}>· ⚠ {overdueCount} overdue follow-ups</span> : ""}</p>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setView((v) => v === "table" ? "kanban" : "table")} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 13px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#374151" }}>
+            <IC n={view === "table" ? "pipeline" : "leads"} s={13} /> {view === "table" ? "Kanban" : "Table"}
+          </button>
+          <Btn variant="primary" accent={accent} onClick={() => setShowAdd(true)}><IC n="plus" s={13} c="#fff" /> Add Lead</Btn>
+        </div>
+      </div>
+
+      {/* Status tabs */}
+      <div style={{ padding: "10px 26px 0", display: "flex", gap: 5, flexWrap: "wrap" }}>
+        {["All", ...Object.keys(STATUS_CFG)].map((s) =>
+        <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: "4px 12px", borderRadius: 20, border: `1.5px solid ${filterStatus === s ? accent : "#e5e7eb"}`, background: filterStatus === s ? accent + "14" : "#fff", color: filterStatus === s ? accent : "#6b7280", cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "all 0.12s" }}>
+            {s}{s !== "All" && statusCounts[s] > 0 ? <span style={{ marginLeft: 4, background: filterStatus === s ? accent : "#e5e7eb", color: filterStatus === s ? "#fff" : "#374151", borderRadius: 10, padding: "0 5px", fontSize: 10 }}>{statusCounts[s]}</span> : ""}
+          </button>
+        )}
+      </div>
+
+      {/* Filters row */}
+      <div style={{ padding: "8px 26px", display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ flex: 1, position: "relative" }}>
+          <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><IC n="search" s={14} c="#9ca3af" /></span>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search leads, companies, IDs…" style={{ width: "100%", padding: "8px 10px 8px 32px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, outline: "none", background: "#fff" }} />
+        </div>
+        <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, background: "#fff", cursor: "pointer" }}>
+          <option value="All">All Priority</option>{PRIORITIES.map((p) => <option key={p}>{p}</option>)}
+        </select>
+        <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} style={{ padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, background: "#fff", cursor: "pointer" }}>
+          <option value="All">All Assignees</option><option>Alex Rivera</option><option>Jordan Lee</option><option>Unassigned</option>
+        </select>
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflow: "auto", padding: "0 26px 24px" }}>
+        {view === "table" ?
+        <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  {["ID", "Contact", "Category", "Budget", "Status", "Priority", "Assignee", "Follow-up", ""].map((h) =>
+                <th key={h} style={{ padding: "9px 14px", textAlign: "left", fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>{h}</th>
+                )}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((lead, i) => {
+                const overdue = lead.followUp && lead.followUp < today() && !["Closed", "Lost", "Ordered"].includes(lead.status);
+                return (
+                  <tr key={lead.id} onClick={() => setSelected(lead)} style={{ borderBottom: "1px solid #f3f4f6", cursor: "pointer", background: i % 2 === 0 ? "#fff" : "#fafafa", transition: "background 0.1s" }} onMouseEnter={(e) => e.currentTarget.style.background = "#f0f9ff"} onMouseLeave={(e) => e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#fafafa"}>
+                      <td style={{ padding: "10px 14px", fontSize: 11, fontWeight: 700, color: accent, fontFamily: "'DM Mono',monospace" }}>{lead.id}</td>
+                      <td style={{ padding: "10px 14px" }}><div style={{ fontWeight: 600, fontSize: 12, color: "#111827" }}>{lead.name}</div><div style={{ fontSize: 10, color: "#9ca3af" }}>{lead.company}</div></td>
+                      <td style={{ padding: "10px 14px", fontSize: 11, color: "#374151" }}>{lead.category}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#111827", whiteSpace: "nowrap" }}>{parseInt(lead.budget || 0).toLocaleString()} AED</td>
+                      <td style={{ padding: "10px 14px" }}><StatusBadge status={lead.status} /></td>
+                      <td style={{ padding: "10px 14px" }}><PriBadge p={lead.priority} /></td>
+                      <td style={{ padding: "10px 14px" }}>
+                        {lead.assignee === "Unassigned" ? <span style={{ fontSize: 11, color: "#9ca3af" }}>—</span> : <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Avatar name={lead.assignee} size={20} /><span style={{ fontSize: 11, color: "#374151" }}>{lead.assignee}</span></div>}
+                      </td>
+                      <td style={{ padding: "10px 14px", fontSize: 11, color: overdue ? "#ef4444" : "#9ca3af", whiteSpace: "nowrap", fontWeight: overdue ? 700 : 400 }}>
+                        {lead.followUp ? overdue ? "⚠ Overdue" : lead.followUp : "—"}
+                      </td>
+                      <td style={{ padding: "10px 14px" }}><button onClick={(e) => {e.stopPropagation();setSelected(lead);}} style={{ padding: "4px 9px", border: "1px solid #e5e7eb", borderRadius: 5, background: "#fff", cursor: "pointer", fontSize: 10, fontWeight: 700, color: "#374151" }}>Open</button></td>
+                    </tr>);
+
+              })}
+              </tbody>
+            </table>
+            {filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 13 }}>No leads match your filters.</div>}
+          </div> :
+
+        // Kanban view
+        <div style={{ display: "flex", gap: 14, height: "100%", overflowX: "auto", paddingBottom: 8 }}>
+            {Object.keys(STATUS_CFG).map((st) => {
+            const col = filtered.filter((l) => l.status === st);
+            const cfg = STATUS_CFG[st];
+            return (
+              <div key={st} style={{ width: 240, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: cfg.bg, borderRadius: 8, border: `1px solid ${cfg.dot}22` }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: cfg.text }}>{st}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: cfg.dot, background: "#fff", borderRadius: 10, padding: "1px 7px" }}>{col.length}</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, overflowY: "auto", maxHeight: "calc(100vh - 280px)" }}>
+                    {col.map((l) =>
+                  <div key={l.id} onClick={() => setSelected(l)} style={{ background: "#fff", borderRadius: 10, padding: "12px 14px", border: "1px solid #e5e7eb", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", transition: "box-shadow 0.15s" }} onMouseEnter={(e) => e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)"} onMouseLeave={(e) => e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"}>
+                        <div style={{ fontWeight: 700, fontSize: 12, color: "#111827", marginBottom: 2 }}>{l.name}</div>
+                        <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>{l.company}</div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: accent }}>{parseInt(l.budget || 0).toLocaleString()} AED</span>
+                          <PriBadge p={l.priority} />
+                        </div>
+                        {l.assignee !== "Unassigned" && <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8, paddingTop: 8, borderTop: "1px solid #f3f4f6" }}><Avatar name={l.assignee} size={18} /><span style={{ fontSize: 10, color: "#9ca3af" }}>{l.assignee}</span></div>}
+                      </div>
+                  )}
+                    {col.length === 0 && <div style={{ fontSize: 11, color: "#d1d5db", textAlign: "center", padding: "16px 0" }}>Empty</div>}
+                  </div>
+                </div>);
+
+          })}
+          </div>
+        }
+      </div>
+
+      {selected && <LeadDrawer lead={leads.find((l) => l.id === selected.id) || selected} onClose={() => setSelected(null)} onUpdate={(l) => {onUpdate(l);setSelected(l);}} activities={activities} onAddActivity={onAddActivity} onDelete={(id) => {onDelete(id);setSelected(null);}} currentUser={currentUser} accent={accent} />}
+      {showAdd && <LeadModal onSave={(l) => {onAdd(l);setShowAdd(false);}} onClose={() => setShowAdd(false)} accent={accent} />}
+    </div>);
+
+};
+
+// ─── CUSTOMERS PAGE ───────────────────────────────────────────────────────────
+const CustomersPage = ({ customers, onAdd, onUpdate, onDelete, accent }) => {
+  const [search, setSearch] = React.useState("");
+  const [showAdd, setShowAdd] = React.useState(false);
+  const [editing, setEditing] = React.useState(null);
+
+  const filtered = customers.filter((c) => !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.contact.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase()));
+  const statusColor = { Active: { bg: "#dcfce7", text: "#15803d" }, Prospect: { bg: "#fef9c3", text: "#854d0e" }, New: { bg: "#dbeafe", text: "#1d4ed8" }, Inactive: { bg: "#f3f4f6", text: "#374151" } };
+
+  return (
+    <div style={{ height: "100%", overflowY: "auto", padding: "20px 26px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div><h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>Customers</h1><p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{customers.length} companies</p></div>
+        <Btn variant="primary" accent={accent} onClick={() => setShowAdd(true)}><IC n="plus" s={13} c="#fff" /> Add Customer</Btn>
+      </div>
+      <div style={{ marginBottom: 14, position: "relative" }}>
+        <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><IC n="search" s={14} c="#9ca3af" /></span>
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search customers…" style={{ width: "100%", padding: "8px 10px 8px 32px", border: "1px solid #e5e7eb", borderRadius: 8, fontSize: 12, outline: "none", background: "#fff" }} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 12 }}>
+        {filtered.map((c) => {
+          const sc = statusColor[c.status] || { bg: "#f3f4f6", text: "#374151" };
+          return (
+            <div key={c.id} style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 18, transition: "box-shadow 0.15s,transform 0.15s" }} onMouseEnter={(e) => {e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";e.currentTarget.style.transform = "translateY(-1px)";}} onMouseLeave={(e) => {e.currentTarget.style.boxShadow = "none";e.currentTarget.style.transform = "none";}}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div style={{ display: "flex", gap: 9, alignItems: "center" }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 9, background: avatarColor(c.name), display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13 }}>{initials(c.name)}</div>
+                  <div><div style={{ fontWeight: 700, fontSize: 13, color: "#111827" }}>{c.name}</div><div style={{ fontSize: 10, color: "#9ca3af" }}>{c.id}</div></div>
+                </div>
+                <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                  <span style={{ padding: "2px 8px", borderRadius: 20, background: sc.bg, color: sc.text, fontSize: 10, fontWeight: 700 }}>{c.status}</span>
+                  <button onClick={() => setEditing(c)} style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><IC n="edit" s={11} c="#9ca3af" /></button>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+                {[{ n: "user", v: c.contact }, { n: "mail", v: c.email }, { n: "location", v: c.location }].map((r) =>
+                <div key={r.n} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11, color: "#374151" }}>
+                    <IC n={r.n} s={11} c="#9ca3af" /><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.v}</span>
+                  </div>
+                )}
+              </div>
+              <div style={{ paddingTop: 10, borderTop: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between" }}>
+                <div style={{ textAlign: "center" }}><div style={{ fontSize: 15, fontWeight: 800, color: "#111827" }}>{c.totalOrders}</div><div style={{ fontSize: 9, color: "#9ca3af", textTransform: "uppercase" }}>Orders</div></div>
+                <div style={{ textAlign: "center" }}><div style={{ fontSize: 12, fontWeight: 800, color: accent }}>{parseInt(c.totalValue || 0).toLocaleString()} AED</div><div style={{ fontSize: 9, color: "#9ca3af", textTransform: "uppercase" }}>Total Value</div></div>
+                <div style={{ textAlign: "center" }}><div style={{ fontSize: 10, fontWeight: 600, color: "#374151" }}>{c.lastOrder}</div><div style={{ fontSize: 9, color: "#9ca3af", textTransform: "uppercase" }}>Last Order</div></div>
+              </div>
+            </div>);
+
+        })}
+      </div>
+      {showAdd && <CustomerModal onSave={(c) => {onAdd(c);setShowAdd(false);}} onClose={() => setShowAdd(false)} accent={accent} />}
+      {editing && <CustomerModal customer={editing} onSave={(c) => {onUpdate(c);setEditing(null);}} onClose={() => setEditing(null)} accent={accent} />}
+    </div>);
+
+};
+
+// ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
+const NotificationsPanel = ({ leads, onClose, accent, T = LIGHT }) => {
+  const overdue = leads.filter((l) => l.followUp && l.followUp < today() && !["Closed", "Lost", "Ordered"].includes(l.status));
+  const newLeads = leads.filter((l) => l.status === "New");
+  const unassigned = leads.filter((l) => l.assignee === "Unassigned");
+  const notifs = [
+  ...overdue.map((l) => ({ type: "warning", msg: `Follow-up overdue: ${l.name} (${l.company})`, sub: l.followUp, color: "#ef4444" })),
+  ...newLeads.map((l) => ({ type: "new", msg: `New inquiry from ${l.name}`, sub: l.company, color: "#3b82f6" })),
+  ...unassigned.map((l) => ({ type: "assign", msg: `Unassigned lead: ${l.id}`, sub: l.company, color: "#f97316" }))];
+
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 500 }} onClick={onClose}>
+      <div style={{ position: "absolute", top: 52, right: 16, width: 320, background: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, boxShadow: "0 8px 32px rgba(0,0,0,0.15)", overflow: "hidden", animation: "slideUp 0.15s ease" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontWeight: 700, fontSize: 13, color: T.text }}>Notifications</span>
+          <span style={{ fontSize: 11, padding: "2px 7px", background: accent + "18", color: accent, borderRadius: 10, fontWeight: 700 }}>{notifs.length}</span>
+        </div>
+        <div style={{ maxHeight: 360, overflowY: "auto" }}>
+          {notifs.length === 0 && <div style={{ padding: 24, textAlign: "center", color: "#9ca3af", fontSize: 12 }}>All caught up! 🎉</div>}
+          {notifs.map((n, i) =>
+          <div key={i} style={{ padding: "10px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.color, marginTop: 4, flexShrink: 0 }}></div>
+              <div><div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{n.msg}</div><div style={{ fontSize: 10, color: "#9ca3af", marginTop: 1 }}>{n.sub}</div></div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>);
+
+};
+
+// ─── GLOBAL SEARCH ────────────────────────────────────────────────────────────
+const GlobalSearch = ({ leads, customers, onSelectLead, onClose, accent, T = LIGHT }) => {
+  const [q, setQ] = React.useState("");
+  const ref = React.useRef();
+  React.useEffect(() => {ref.current?.focus();}, []);
+
+  const results = q.length > 1 ? [
+  ...leads.filter((l) => [l.name, l.company, l.id, l.email, l.category].some((f) => f.toLowerCase().includes(q.toLowerCase()))).slice(0, 5).map((l) => ({ type: "lead", item: l })),
+  ...customers.filter((c) => [c.name, c.contact, c.email].some((f) => f.toLowerCase().includes(q.toLowerCase()))).slice(0, 3).map((c) => ({ type: "customer", item: c }))] :
+  [];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 600, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 80 }} onClick={onClose}>
+      <div style={{ width: 560, background: T.surface, borderRadius: 14, border: `1px solid ${T.border}`, boxShadow: "0 16px 48px rgba(0,0,0,0.2)", overflow: "hidden", animation: "slideUp 0.15s ease" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: `1px solid ${T.border}` }}>
+          <IC n="search" s={17} c={T.textMuted} />
+          <input ref={ref} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search leads, customers, IDs…" style={{ flex: 1, border: "none", outline: "none", fontSize: 15, color: T.text, background: "none" }} />
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${T.border}`, cursor: "pointer", fontSize: 11, color: T.textMuted, padding: "2px 6px", borderRadius: 4 }}>Esc</button>
+        </div>
+        {results.length > 0 &&
+        <div style={{ maxHeight: 360, overflowY: "auto" }}>
+            {results.map((r, i) =>
+          <div key={i} onClick={() => {if (r.type === "lead") {onSelectLead(r.item);onClose();} else onClose();}} style={{ padding: "10px 16px", cursor: "pointer", display: "flex", gap: 10, alignItems: "center", borderBottom: `1px solid ${T.border}`, transition: "background 0.1s" }} onMouseEnter={(e) => e.currentTarget.style.background = T.surface2} onMouseLeave={(e) => e.currentTarget.style.background = T.surface}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: r.type === "lead" ? accent + "18" : "#7c3aed18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <IC n={r.type === "lead" ? "leads" : "customers"} s={14} c={r.type === "lead" ? accent : "#7c3aed"} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{r.item.name}</div>
+                  <div style={{ fontSize: 11, color: T.textMuted }}>{r.type === "lead" ? `${r.item.company} · ${r.item.id} · ${r.item.status}` : r.item.contact}</div>
+                </div>
+                <IC n="chevronRight" s={14} c={T.textMuted} />
+              </div>
+          )}
+          </div>
+        }
+        {q.length > 1 && results.length === 0 && <div style={{ padding: 24, textAlign: "center", color: T.textMuted, fontSize: 13 }}>No results for "{q}"</div>}
+        {q.length === 0 && <div style={{ padding: "12px 16px", fontSize: 11, color: T.textMuted }}>Type to search leads, customers, and more…</div>}
+      </div>
+    </div>);
+
+};
+
+// ─── ANALYTICS PAGE ───────────────────────────────────────────────────────────
+const AnalyticsPage = ({ leads, accent, T = LIGHT }) => {
+  const total = leads.length;
+  const ordered = leads.filter((l) => ["Ordered", "Closed"].includes(l.status)).length;
+  const rate = total ? Math.round(ordered / total * 100) : 0;
+  const pipeline = leads.filter((l) => !["Lost", "Closed"].includes(l.status)).reduce((s, l) => s + (parseInt(l.budget) || 0), 0);
+  const won = leads.filter((l) => ["Ordered", "Closed"].includes(l.status)).reduce((s, l) => s + (parseInt(l.budget) || 0), 0);
+
+  const catData = CATEGORIES.map((c) => ({ name: c, count: leads.filter((l) => l.category === c).length })).filter((c) => c.count > 0).sort((a, b) => b.count - a.count);
+  const srcData = SOURCES.map((s) => ({ name: s, count: leads.filter((l) => l.source === s).length })).filter((s) => s.count > 0).sort((a, b) => b.count - a.count);
+  const maxCat = Math.max(...catData.map((c) => c.count), 1);
+
+  const funnelStages = Object.keys(STATUS_CFG).map((s) => ({ label: s, count: leads.filter((l) => l.status === s).length, color: STATUS_CFG[s].bg, dot: STATUS_CFG[s].dot }));
+  const maxFunnel = Math.max(...funnelStages.map((f) => f.count), 1);
+
+  const teamStats = ["Alex Rivera", "Jordan Lee", "Manager"].map((name) => ({
+    name, total: leads.filter((l) => l.assignee === name).length,
+    won: leads.filter((l) => l.assignee === name && ["Ordered", "Closed"].includes(l.status)).length,
+    value: leads.filter((l) => l.assignee === name).reduce((s, l) => s + (parseInt(l.budget) || 0), 0)
+  }));
+
+  return (
+    <div style={{ height: "100%", overflowY: "auto", padding: "20px 26px" }}>
+      <div style={{ marginBottom: 20 }}><h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>Analytics</h1><p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Live data · {total} total leads</p></div>
+      <div className="mob-grid1" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
+        <MetricCard label="Total Leads" value={total} sub="All time" icon="leads" accent={accent} trend="3 new today" T={T} />
+        <MetricCard label="Conversion Rate" value={rate + "%"} sub="Inquiry → Order" icon="trending" accent="#22c55e" T={T} />
+        <MetricCard label="Pipeline Value" value={"AED " + fmtShort(pipeline)} sub="Active leads" icon="dollar" accent="#7c3aed" T={T} />
+        <MetricCard label="Won Value" value={"AED " + fmtShort(won)} sub="Ordered + Closed" icon="check" accent="#059669" T={T} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        {/* Funnel */}
+        <div style={{ background: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, padding: 18 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 14 }}>Lead Pipeline Status</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {funnelStages.map((f) =>
+            <div key={f.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 90, fontSize: 11, color: "#6b7280" }}>{f.label}</div>
+                <div style={{ flex: 1, background: "#f3f4f6", borderRadius: 4, height: 16, overflow: "hidden" }}>
+                  <div style={{ width: `${f.count / maxFunnel * 100}%`, height: "100%", background: f.dot, borderRadius: 4, transition: "width 0.5s", opacity: 0.7 }}></div>
+                </div>
+                <div style={{ width: 24, textAlign: "right", fontSize: 12, fontWeight: 700, color: "#111827" }}>{f.count}</div>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Category */}
+        <div style={{ background: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, padding: 18 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 14 }}>Top Categories</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {catData.slice(0, 7).map((c) =>
+            <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 90, fontSize: 11, color: "#374151", fontWeight: 500 }}>{c.name}</div>
+                <div style={{ flex: 1, background: "#f3f4f6", borderRadius: 4, height: 8 }}>
+                  <div style={{ width: `${c.count / maxCat * 100}%`, height: "100%", background: accent, borderRadius: 4 }}></div>
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", width: 16 }}>{c.count}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {/* Lead sources */}
+        <div style={{ background: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, padding: 18 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 14 }}>Lead Sources</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {srcData.map((s, i) =>
+            <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 100, fontSize: 11, color: "#374151" }}>{s.name}</div>
+                <div style={{ flex: 1, background: "#f3f4f6", borderRadius: 4, height: 8 }}>
+                  <div style={{ width: `${s.count / total * 100}%`, height: "100%", background: "#7c3aed", borderRadius: 4 }}></div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#374151", width: 24, textAlign: "right" }}>{s.count}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Team */}
+        <div style={{ background: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, padding: 18 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 14 }}>Team Performance</div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr style={{ borderBottom: "1px solid #f3f4f6" }}>{["Rep", "Leads", "Won", "Value", "Rate"].map((h) => <th key={h} style={{ padding: "5px 8px", textAlign: "left", fontSize: 10, color: "#9ca3af", fontWeight: 600, textTransform: "uppercase" }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {teamStats.map((t) =>
+              <tr key={t.name} style={{ borderBottom: "1px solid #f9fafb" }}>
+                  <td style={{ padding: "8px 8px" }}><div style={{ display: "flex", alignItems: "center", gap: 7 }}><Avatar name={t.name} size={26} /><span style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{t.name}</span></div></td>
+                  <td style={{ padding: "8px 8px", fontSize: 12, color: "#374151" }}>{t.total}</td>
+                  <td style={{ padding: "8px 8px", fontSize: 12, color: "#22c55e", fontWeight: 700 }}>{t.won}</td>
+                  <td style={{ padding: "8px 8px", fontSize: 11, color: "#374151" }}>AED {fmtShort(t.value)}</td>
+                  <td style={{ padding: "8px 8px", fontSize: 12, fontWeight: 700, color: t.total ? t.won / t.total > 0.5 ? "#22c55e" : "#f97316" : "#9ca3af" }}>{t.total ? Math.round(t.won / t.total * 100) + "%" : "—"}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>);
+
+};
+
+// ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
+const SettingsPage = ({ currentUser, accent }) => {
+  const [tab, setTab] = React.useState("profile");
+  const [name, setName] = React.useState(currentUser.name);
+  const [email, setEmail] = React.useState(currentUser.email || "");
+  const [saved, setSaved] = React.useState(false);
+
+  const save = () => {setSaved(true);setTimeout(() => setSaved(false), 2000);};
+
+  return (
+    <div style={{ height: "100%", overflowY: "auto", padding: "20px 26px" }}>
+      <h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827", marginBottom: 20 }}>Settings</h1>
+      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e5e7eb", marginBottom: 24 }}>
+        {["profile", "team", "system"].map((t) =>
+        <button key={t} onClick={() => setTab(t)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: `2px solid ${tab === t ? accent : "transparent"}`, color: tab === t ? accent : "#6b7280", fontWeight: tab === t ? 700 : 500, fontSize: 13, cursor: "pointer", textTransform: "capitalize", marginBottom: "-1px", transition: "all 0.15s" }}>{t.charAt(0).toUpperCase() + t.slice(1)}</button>
+        )}
+      </div>
+      {tab === "profile" &&
+      <div style={{ maxWidth: 480, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", gap: 14, alignItems: "center", padding: 16, background: "#f9fafb", borderRadius: 10, border: "1px solid #e5e7eb" }}>
+            <Avatar name={currentUser.name} size={52} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: "#111827" }}>{currentUser.name}</div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>{currentUser.roleLabel}</div>
+              <div style={{ fontSize: 12, color: accent, marginTop: 2 }}>{currentUser.email}</div>
+            </div>
+          </div>
+          <Input label="Display Name" value={name} onChange={setName} />
+          <Input label="Email" type="email" value={email} onChange={setEmail} />
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Role</div>
+            <div style={{ padding: "8px 10px", background: "#f3f4f6", borderRadius: 7, fontSize: 13, color: "#374151" }}>{currentUser.roleLabel}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <Btn variant="primary" accent={accent} onClick={save}>Save Changes</Btn>
+            {saved && <span style={{ fontSize: 12, color: "#22c55e", fontWeight: 600 }}>✓ Saved!</span>}
+          </div>
+        </div>
+      }
+      {tab === "team" &&
+      <div style={{ maxWidth: 560 }}>
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+            <div style={{ padding: "12px 16px", background: "#f9fafb", borderBottom: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 700, fontSize: 13, color: "#111827" }}>Team Members</span>
+              <Btn variant="secondary" small><IC n="plus" s={11} /> Invite</Btn>
+            </div>
+            {TEAM_ACCOUNTS.map((a) =>
+          <div key={a.username} style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <Avatar name={a.name} size={36} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{a.name}</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af" }}>{a.email}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 10, padding: "2px 8px", background: accent + "18", color: accent, borderRadius: 10, fontWeight: 600 }}>{a.roleLabel.split("·")[0].trim()}</span>
+                  {a.username !== currentUser.username && <button style={{ padding: "4px 10px", border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", fontSize: 11, cursor: "pointer", color: "#6b7280" }}>Manage</button>}
+                </div>
+              </div>
+          )}
+          </div>
+        </div>
+      }
+      {tab === "system" &&
+      <div style={{ maxWidth: 480, display: "flex", flexDirection: "column", gap: 14 }}>
+          {[["Company Name", "ChipSync Technology Solutions"], ["Email", "sales@chipsync.ae"], ["Location", "Dubai, UAE"], ["Phone", "+971 50 000 0000"], ["TRN", "100000000000001"]].map(([k, v]) =>
+        <Input key={k} label={k} value={v} onChange={() => {}} />
+        )}
+          <div style={{ padding: 14, background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a", fontSize: 12, color: "#92400e" }}>
+            💡 These settings affect the quotation letterhead. Update them to match your official company details.
+          </div>
+          <Btn variant="primary" accent={accent} onClick={save}>Save System Settings</Btn>
+        </div>
+      }
+    </div>);
+
+};
+
+// ─── DASHBOARD HOME ───────────────────────────────────────────────────────────
+const DashboardHome = ({ leads, customers, activities, currentUser, setPage, accent, T = LIGHT }) => {
+  const newLeads = leads.filter((l) => l.status === "New").length;
+  const highPri = leads.filter((l) => l.priority === "High" && !["Closed", "Lost", "Ordered"].includes(l.status)).length;
+  const pipeline = leads.filter((l) => !["Lost", "Closed"].includes(l.status)).reduce((s, l) => s + (parseInt(l.budget) || 0), 0);
+  const overdue = leads.filter((l) => l.followUp && l.followUp < today() && !["Closed", "Lost", "Ordered"].includes(l.status));
+  const recentLeads = [...leads].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : "hour" < 17 ? "Good afternoon" : "Good evening";
+
+  return (
+    <div style={{ height: "100%", overflowY: "auto", padding: "20px 26px" }}>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>{greeting}, {currentUser.name} 👋</h1>
+        <p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Friday, May 2, 2026 · Here's what needs your attention</p>
+      </div>
+      <div className="mob-grid1" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
+        <MetricCard label="Total Leads" value={leads.length} sub="All time" icon="leads" accent={accent} trend="3 new today" T={T} />
+        <MetricCard label="New Inquiries" value={newLeads} sub="Needs attention" icon="bell" accent="#ef4444" T={T} />
+        <MetricCard label="High Priority" value={highPri} sub="Active leads" icon="warning" accent="#f97316" T={T} />
+        <MetricCard label="Pipeline" value={"AED " + fmtShort(pipeline)} sub="Open value" icon="dollar" accent="#22c55e" T={T} />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
+        {/* Recent leads */}
+        <div style={{ background: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+          <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: "#111827" }}>Recent Leads</span>
+            <button onClick={() => setPage("leads")} style={{ fontSize: 11, color: accent, fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>View all →</button>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <tbody>
+              {recentLeads.map((l, i) =>
+              <tr key={l.id} style={{ borderBottom: i < recentLeads.length - 1 ? "1px solid #f9fafb" : "none" }}>
+                  <td style={{ padding: "10px 18px" }}>
+                    <div style={{ display: "flex", gap: 9, alignItems: "center" }}>
+                      <Avatar name={l.name} size={32} />
+                      <div><div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{l.name}</div><div style={{ fontSize: 10, color: "#9ca3af" }}>{l.company}</div></div>
+                    </div>
+                  </td>
+                  <td style={{ padding: "10px 12px" }}><div style={{ fontSize: 11, color: "#374151" }}>{l.category}</div><div style={{ fontSize: 10, color: "#9ca3af" }}>{parseInt(l.budget || 0).toLocaleString()} AED</div></td>
+                  <td style={{ padding: "10px 12px" }}><StatusBadge status={l.status} /></td>
+                  <td style={{ padding: "10px 18px", fontSize: 10, color: "#9ca3af", textAlign: "right" }}>{relDate(l.date)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {/* Sidebar */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Quick actions */}
+          <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 14 }}>
+            <div style={{ fontWeight: 700, fontSize: 12, color: "#111827", marginBottom: 10 }}>Quick Actions</div>
+            {[
+            { label: "View all leads", icon: "leads", page: "leads", color: "#7c3aed" },
+            { label: "Analytics report", icon: "analytics", page: "analytics", color: accent },
+            { label: "Customer list", icon: "customers", page: "customers", color: "#0891b2" }].
+            map((a) =>
+            <button key={a.label} onClick={() => setPage(a.page)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "1px solid #e5e7eb", borderRadius: 7, background: "#f9fafb", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 6, textAlign: "left" }}>
+                <IC n={a.icon} s={13} c={a.color} />{a.label}
+              </button>
+            )}
+          </div>
+          {/* Overdue follow-ups */}
+          {overdue.length > 0 &&
+          <div style={{ background: "#fff7ed", borderRadius: 12, border: "1px solid #fed7aa", padding: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "#9a3412", marginBottom: 8 }}>⚠ Overdue Follow-ups ({overdue.length})</div>
+              {overdue.slice(0, 3).map((l) =>
+            <div key={l.id} style={{ fontSize: 11, color: "#c2410c", marginBottom: 4 }}>• {l.name} — {l.company}<span style={{ color: "#9ca3af", marginLeft: 4 }}>({l.followUp})</span></div>
+            )}
+              <button onClick={() => setPage("leads")} style={{ marginTop: 6, fontSize: 11, color: "#9a3412", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Review now →</button>
+            </div>
+          }
+          {/* Unassigned */}
+          {leads.filter((l) => l.assignee === "Unassigned").length > 0 &&
+          <div style={{ background: "#eff6ff", borderRadius: 12, border: "1px solid #bfdbfe", padding: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 12, color: "#1e40af", marginBottom: 4 }}>🔔 {leads.filter((l) => l.assignee === "Unassigned").length} Unassigned Leads</div>
+              <div style={{ fontSize: 11, color: "#3b82f6" }}>These leads need to be assigned to a team member.</div>
+              <button onClick={() => setPage("leads")} style={{ marginTop: 6, fontSize: 11, color: "#1e40af", fontWeight: 700, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Assign now →</button>
+            </div>
+          }
+        </div>
+      </div>
+    </div>);
+
+};
+
+// ─── PIPELINE PAGE ────────────────────────────────────────────────────────────
+const PipelinePage = ({ leads, onUpdate, onSelectLead, accent }) => {
+  const total = leads.filter((l) => !["Lost"].includes(l.status)).reduce((s, l) => s + (parseInt(l.budget) || 0), 0);
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "20px 26px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div><h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>Pipeline</h1><p style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>Total pipeline: AED {total.toLocaleString()}</p></div>
+      </div>
+      <div style={{ flex: 1, overflow: "auto", padding: "0 26px 24px" }}>
+        <div style={{ display: "flex", gap: 12, height: "100%" }}>
+          {Object.keys(STATUS_CFG).map((st) => {
+            const col = leads.filter((l) => l.status === st);
+            const cfg = STATUS_CFG[st];
+            const val = col.reduce((s, l) => s + (parseInt(l.budget) || 0), 0);
+            return (
+              <div key={st} style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ padding: "8px 12px", background: cfg.bg, borderRadius: 8, border: `1px solid ${cfg.dot}33` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: cfg.text }}>{st}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,0.7)", color: cfg.text, borderRadius: 10, padding: "1px 7px" }}>{col.length}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: cfg.text, opacity: 0.7, marginTop: 2 }}>AED {val.toLocaleString()}</div>
+                </div>
+                <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 7 }}>
+                  {col.map((l) =>
+                  <div key={l.id} onClick={() => onSelectLead(l)} style={{ background: "#fff", borderRadius: 9, padding: "11px 13px", border: "1px solid #e5e7eb", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", transition: "box-shadow 0.15s,transform 0.15s" }} onMouseEnter={(e) => {e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";e.currentTarget.style.transform = "translateY(-1px)";}} onMouseLeave={(e) => {e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";e.currentTarget.style.transform = "none";}}>
+                      <div style={{ fontWeight: 700, fontSize: 11, color: "#111827", marginBottom: 1 }}>{l.name}</div>
+                      <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 6 }}>{l.company}</div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: accent, marginBottom: 4 }}>AED {parseInt(l.budget || 0).toLocaleString()}</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <PriBadge p={l.priority} />
+                        {l.assignee !== "Unassigned" ? <div style={{ display: "flex", alignItems: "center", gap: 4 }}><Avatar name={l.assignee} size={16} /><span style={{ fontSize: 9, color: "#9ca3af" }}>{l.assignee}</span></div> : <span style={{ fontSize: 9, color: "#d1d5db" }}>Unassigned</span>}
+                      </div>
+                      {l.followUp && l.followUp < today() && <div style={{ marginTop: 6, fontSize: 9, color: "#ef4444", fontWeight: 700 }}>⚠ Follow-up overdue</div>}
+                    </div>
+                  )}
+                  {col.length === 0 && <div style={{ fontSize: 11, color: "#d1d5db", textAlign: "center", padding: "20px 0", border: "1px dashed #e5e7eb", borderRadius: 8 }}>Empty</div>}
+                </div>
+              </div>);
+
+          })}
+        </div>
+      </div>
+    </div>);
+
+};
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+const App = () => {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const accent = tweaks.accentColor;
+  const darkMode = tweaks.darkMode;
+  const T = useTheme(darkMode);
+
+  // Apply dark class to body
+  React.useEffect(() => {
+    document.body.classList.toggle("dark", darkMode);
+  }, [darkMode]);
+
+  const [currentUser, setCurrentUser] = React.useState(() => {try {return JSON.parse(sessionStorage.getItem("chipsync_user")) || null;} catch {return null;}});
+  const [page, setPage] = React.useState("dashboard");
+  const [leads, setLeads] = usePersist("leads", INIT_LEADS);
+  const [customers, setCustomers] = usePersist("customers", INIT_CUSTOMERS);
+  const [activities, setActivities] = usePersist("activities", INIT_ACTIVITIES);
+  const [pipelineSelected, setPipelineSelected] = React.useState(null);
+  const [showNotifs, setShowNotifs] = React.useState(false);
+  const [showSearch, setShowSearch] = React.useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
+  const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
+
+  React.useEffect(() => {
+    const handler = (e) => {if ((e.metaKey || e.ctrlKey) && e.key === "k") {e.preventDefault();setShowSearch(true);}};
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const handleLogin = (acc) => {sessionStorage.setItem("chipsync_user", JSON.stringify(acc));setCurrentUser(acc);};
+  const handleLogout = () => {sessionStorage.removeItem("chipsync_user");setCurrentUser(null);};
+
+  const addLead = (l) => setLeads((p) => [l, ...p]);
+  const updateLead = (l) => setLeads((p) => p.map((x) => x.id === l.id ? l : x));
+  const deleteLead = (id) => setLeads((p) => p.filter((x) => x.id !== id));
+  const addActivity = (lid, a) => setActivities((p) => ({ ...p, [lid]: [...(p[lid] || []), a] }));
+  const addCustomer = (c) => setCustomers((p) => [c, ...p]);
+  const updateCustomer = (c) => setCustomers((p) => p.map((x) => x.id === c.id ? c : x));
+
+  const newLeadsCount = leads.filter((l) => l.status === "New").length;
+  const overdueCount = leads.filter((l) => l.followUp && l.followUp < today() && !["Closed", "Lost", "Ordered"].includes(l.status)).length;
+  const notifCount = newLeadsCount + overdueCount + leads.filter((l) => l.assignee === "Unassigned").length;
+
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
+
+  const NAV = [
+  { id: "dashboard", label: "Overview", icon: "dashboard" },
+  { id: "leads", label: "Leads", icon: "leads", badge: newLeadsCount },
+  { id: "pipeline", label: "Pipeline", icon: "pipeline" },
+  { id: "customers", label: "Customers", icon: "customers" },
+  { id: "analytics", label: "Analytics", icon: "analytics" },
+  { id: "team", label: "Team", icon: "team" },
+  { id: "settings", label: "Settings", icon: "settings" }];
+
+
+  const sidebarBg = tweaks.sidebarDark ? "#111827" : T.surface;
+  const sidebarText = tweaks.sidebarDark ? "#d1d5db" : T.textSub;
+  const sidebarBorder = tweaks.sidebarDark ? "#1f2937" : T.border;
+  const SW = sidebarCollapsed ? 56 : 210;
+
+  const renderPage = () => {
+    const props = { accent, currentUser, T };
+    if (page === "dashboard") return <DashboardHome leads={leads} customers={customers} activities={activities} setPage={setPage} {...props} />;
+    if (page === "leads") return <LeadsPage leads={leads} onUpdate={updateLead} onAdd={addLead} onDelete={deleteLead} activities={activities} onAddActivity={addActivity} {...props} />;
+    if (page === "pipeline") return <PipelinePage leads={leads} onUpdate={updateLead} onSelectLead={(l) => {setPipelineSelected(l);setPage("leads");}} {...props} />;
+    if (page === "customers") return <CustomersPage customers={customers} onAdd={addCustomer} onUpdate={updateCustomer} onDelete={(id) => setCustomers((p) => p.filter((x) => x.id !== id))} {...props} />;
+    if (page === "analytics") return <AnalyticsPage leads={leads} {...props} />;
+    if (page === "team") return (
+      <div style={{ padding: "20px 26px", overflowY: "auto", height: "100%" }}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827", marginBottom: 20 }}>Team</h1>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 14 }}>
+          {TEAM_ACCOUNTS.map((t) => {
+            const tLeads = leads.filter((l) => l.assignee === t.name);
+            const tWon = tLeads.filter((l) => ["Ordered", "Closed"].includes(l.status));
+            return (
+              <div key={t.username} style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", padding: 22, textAlign: "center" }}>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}><Avatar name={t.name} size={52} /></div>
+                <div style={{ fontWeight: 800, fontSize: 15, color: "#111827" }}>{t.name}</div>
+                <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>{t.email}</div>
+                <span style={{ fontSize: 10, padding: "2px 8px", background: accent + "18", color: accent, borderRadius: 10, fontWeight: 700 }}>{t.roleLabel.split("·")[0].trim()}</span>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 16 }}>
+                  {[["Leads", tLeads.length], ["Won", tWon.length], ["Value", "AED " + fmtShort(tLeads.reduce((s, l) => s + (parseInt(l.budget) || 0), 0))], ["Rate", tLeads.length ? Math.round(tWon.length / tLeads.length * 100) + "%" : "—"]].map(([k, v]) =>
+                  <div key={k} style={{ background: "#f9fafb", borderRadius: 8, padding: "9px 6px" }}><div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>{v}</div><div style={{ fontSize: 9, color: "#9ca3af", textTransform: "uppercase" }}>{k}</div></div>
+                  )}
+                </div>
+              </div>);
+
+          })}
+        </div>
+      </div>);
+
+    if (page === "settings") return <SettingsPage {...props} />;
+    return null;
+  };
+
+  return (
+    <div style={{ display: "flex", height: "100vh", background: T.bg, overflow: "hidden", color: T.text }}>
+      {/* Mobile sidebar overlay */}
+      {mobileSidebarOpen && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 150 }} onClick={() => setMobileSidebarOpen(false)} />}
+
+      {/* Sidebar */}
+      <div style={{ width: SW, background: sidebarBg, borderRight: `1px solid ${sidebarBorder}`, display: "flex", flexDirection: "column", transition: "width 0.2s, transform 0.2s", flexShrink: 0, overflow: "hidden", position: "relative", zIndex: 160,
+        ...(isMobile ? { position: "fixed", top: 0, left: 0, height: "100%", transform: mobileSidebarOpen ? "translateX(0)" : "translateX(-100%)", width: 210 } : {}) }}>
+        <div style={{ padding: sidebarCollapsed ? "16px 0" : "14px 14px", display: "flex", alignItems: "center", gap: 9, borderBottom: `1px solid ${sidebarBorder}`, justifyContent: sidebarCollapsed ? "center" : "flex-start", flexShrink: 0 }}>
+          {sidebarCollapsed
+            ? <div style={{ width:30, height:30, borderRadius:7, background:accent, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" fill="white"/><path d="M2 17l10 5 10-5" stroke="white" strokeWidth="2.2" strokeLinecap="round"/><path d="M2 12l10 5 10-5" stroke="white" strokeWidth="2.2" strokeLinecap="round"/></svg>
+              </div>
+            : <img src="logo.png" alt="ChipSync" style={{ height:26, objectFit:"contain", filter: tweaks.sidebarDark ? "invert(1) brightness(2)" : "none", maxWidth:140 }} />
+          }
+        </div>
+        <nav style={{ flex: 1, padding: "10px 6px", display: "flex", flexDirection: "column", gap: 1, overflowY: "auto" }}>
+          {NAV.map((n) => {
+            const active = page === n.id;
+            return (
+              <button key={n.id} onClick={() => {setPage(n.id);setMobileSidebarOpen(false);}} title={sidebarCollapsed ? n.label : undefined} style={{ display: "flex", alignItems: "center", gap: 9, padding: sidebarCollapsed ? "9px 0" : "8px 10px", borderRadius: 8, border: "none", background: active ? tweaks.sidebarDark ? accent + "22" : accent + "14" : "none", color: active ? accent : sidebarText, cursor: "pointer", fontSize: 12, fontWeight: active ? 700 : 500, width: "100%", justifyContent: sidebarCollapsed ? "center" : "flex-start", transition: "all 0.12s", position: "relative" }} onMouseEnter={(e) => {if (!active) e.currentTarget.style.background = tweaks.sidebarDark ? "#1f2937" : T.surface2;}} onMouseLeave={(e) => {if (!active) e.currentTarget.style.background = "none";}}>
+                <IC n={n.icon} s={15} c={active ? accent : sidebarText} />
+                {!sidebarCollapsed && n.label}
+                {!sidebarCollapsed && n.badge > 0 && <span style={{ marginLeft: "auto", background: "#ef4444", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 9, fontWeight: 700 }}>{n.badge}</span>}
+              </button>);
+
+          })}
+        </nav>
+        <div style={{ padding: "8px 6px", borderTop: `1px solid ${sidebarBorder}` }}>
+          {!isMobile && <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ display: "flex", alignItems: "center", gap: 9, padding: sidebarCollapsed ? "9px 0" : "8px 10px", borderRadius: 8, border: "none", background: "none", color: sidebarText, cursor: "pointer", fontSize: 11, width: "100%", justifyContent: sidebarCollapsed ? "center" : "flex-start" }}>
+            <IC n={sidebarCollapsed ? "chevronRight" : "chevronLeft"} s={14} c={sidebarText} />
+            {!sidebarCollapsed && "Collapse"}
+          </button>}
+        </div>
+      </div>
+
+      {/* Main */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+        {/* Top bar */}
+        <div style={{ height: 50, background: T.surface, borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", padding: "0 16px", gap: 8, flexShrink: 0 }}>
+          {/* Mobile hamburger */}
+          <button onClick={() => setMobileSidebarOpen(true)} style={{ display: isMobile ? "flex" : "none", width: 34, height: 34, borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, cursor: "pointer", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.textSub} strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+          </button>
+          <button onClick={() => setShowSearch(true)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 12px", border: `1px solid ${T.border}`, borderRadius: 7, background: T.surface2, cursor: "pointer", fontSize: 12, color: T.textMuted }}>
+            <IC n="search" s={13} c={T.textMuted} /> <span className="mob-hide">Search…</span> <span className="mob-hide" style={{ fontSize: 10, background: T.border, borderRadius: 4, padding: "1px 5px" }}>⌘K</span>
+          </button>
+          {/* CSV export button */}
+          <button onClick={() => exportCSV(leads)} className="mob-hide" style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", border: `1px solid ${T.border}`, borderRadius: 7, background: T.surface2, cursor: "pointer", fontSize: 11, color: T.textSub, fontWeight: 600 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+            Export CSV
+          </button>
+          <div style={{ flex: 1 }} />
+          <button onClick={() => setShowNotifs(!showNotifs)} style={{ position: "relative", width: 34, height: 34, borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <IC n="bell" s={15} c={T.textSub} />
+            {notifCount > 0 && <span style={{ position: "absolute", top: 5, right: 5, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", border: "1.5px solid " + T.surface }}></span>}
+          </button>
+          <div style={{ display: "flex", gap: 7, alignItems: "center", padding: "4px 8px", border: `1px solid ${T.border}`, borderRadius: 8 }}>
+            <Avatar name={currentUser.name} size={24} />
+            <div className="mob-hide" style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: T.text, lineHeight: 1.2 }}>{currentUser.name}</span>
+              <span style={{ fontSize: 9, color: T.textMuted, lineHeight: 1.2 }}>{currentUser.roleLabel.split("·")[0].trim()}</span>
+            </div>
+          </div>
+          <button onClick={handleLogout} title="Sign out" style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <IC n="logout" s={14} c={T.textSub} />
+          </button>
+        </div>
+        <div style={{ flex: 1, overflow: "hidden", background: T.bg }} className="fade-in" key={page}>{renderPage()}</div>
+      </div>
+
+      {showNotifs && <NotificationsPanel leads={leads} onClose={() => setShowNotifs(false)} accent={accent} T={T} />}
+      {showSearch && <GlobalSearch leads={leads} customers={customers} onSelectLead={(l) => {setPage("leads");setShowSearch(false);}} onClose={() => setShowSearch(false)} accent={accent} T={T} />}
+
+      <TweaksPanel>
+        <TweakSection label="Appearance" />
+        <TweakColor label="Accent Color" value={tweaks.accentColor} onChange={(v) => setTweak("accentColor", v)} />
+        <TweakToggle label="Dark Mode" value={tweaks.darkMode} onChange={(v) => setTweak("darkMode", v)} />
+        <TweakToggle label="Dark Sidebar" value={tweaks.sidebarDark} onChange={(v) => setTweak("sidebarDark", v)} />
+        <TweakToggle label="Compact Mode" value={tweaks.compactMode} onChange={(v) => setTweak("compactMode", v)} />
+      </TweaksPanel>
+    </div>);
+
+};
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
